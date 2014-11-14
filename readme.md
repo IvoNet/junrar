@@ -3,6 +3,12 @@
 Adds support to read and extract a rar.
 
 
+## Prerequisites
+
+* Java 1.8 (JDK)
+* Maven 3+
+
+
 ## build
 
 
