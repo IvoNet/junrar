@@ -1,31 +1,37 @@
-JUnrar
-=====
+# JUnrar
 
 Adds support to read and extract a rar.
 
 
+## build
 
-
----
-
-If you want the origional code please go to this repositories parent
-
-Usage of the origional code:
 
 ```java
-final File rar = new File("foo.rar");  
-final File destinationFolder = new File("destinationFolder");  
-ExtractArchive extractArchive = new ExtractArchive();  
-extractArchive.extractArchive(rar, destinationFolder);  
+mvn package
 ```
 
-Dependency on maven:  
+## Usage
 
-```xml
-<dependency>  
-  <groupId>com.github.junrar</groupId>  
-  <artifactId>junrar</artifactId>
-  <version>0.7</version>  
-</dependency>  
+### Commandline
+
+
+```bash
+java -jar junrar-jar-with-dependencies <rar> <output dir>
 ```
+
+
+### Code
+
+
+```java
+RarExtractor rar = new RarExtractor();
+rar.extractArchive('path/to/rarfile.rar', 'path/to/output/folder')
+
+```
+
+See also the testcase(s) for more code samples
+
+
+
+
 
