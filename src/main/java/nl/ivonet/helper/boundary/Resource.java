@@ -12,8 +12,6 @@
 
 package nl.ivonet.helper.boundary;
 
-import com.sun.istack.internal.NotNull;
-
 import java.nio.file.Paths;
 import java.util.Arrays;
 
@@ -26,17 +24,17 @@ public class Resource {
     private String path;
     private byte[] data;
 
-    public Resource(@NotNull final String filename) {
+    public Resource(final String filename) {
         this.filename = filename;
         this.path = "";
     }
 
-    public Resource(@NotNull final String path, @NotNull final String filename) {
+    public Resource(final String path, final String filename) {
         this.path = path;
         this.filename = filename;
     }
 
-    public Resource(@NotNull final String path, @NotNull final String filename, @NotNull final byte[] data) {
+    public Resource(final String path, final String filename, final byte[] data) {
         this.path = path;
         this.filename = filename;
         this.data = Arrays.copyOf(data, data.length);
