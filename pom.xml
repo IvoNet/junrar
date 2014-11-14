@@ -3,7 +3,7 @@
   ~ Copyright (c) 2007 innoSysTec (R) GmbH, Germany. All rights reserved.
   ~ Original author: Edmund Wagner
   ~
-  ~ Copyright (c) 2014 IvoNet.nl. All rights reserved
+  ~ Copyright (c) 2014 IvoNet.nl. All rights reserved.
   ~ Refactoring and upgrading of original code: Ivo Woltring
   ~ Author of all nl.ivonet packaged code: Ivo Woltring
   ~
@@ -17,10 +17,43 @@
 
     <groupId>nl.ivonet</groupId>
     <artifactId>junrar</artifactId>
+    <packaging>jar</packaging>
     <version>1.0-SNAPSHOT</version>
+    <name>Java UnRar</name>
+    <description>rar decompression library in plain java</description>
+    <url>https://github.com/ivonet/junrar</url>
 
-    <name>UnRar</name>
-    <url>http://IvoNet.nl</url>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+    </properties>
+
+    <licenses>
+        <license>
+            <name>UnRar License</name>
+            <url>https://raw.github.com/ivonet/junrar/master/license.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <connection>scm:git:git@github.com:junrar/junrar.git</connection>
+        <developerConnection>scm:git:git@github.com:junrar/junrar.git</developerConnection>
+        <url>git@github.com:junrar/junrar.git</url>
+    </scm>
+
+    <developers>
+        <developer>
+            <id>edmund_wagner</id>
+            <name>Edmund Wagner</name>
+        </developer>
+        <developer>
+            <id>ivonet</id>
+            <name>Ivo Woltring</name>
+            <url>http://ivonet.nl</url>
+        </developer>
+    </developers>
 
     <dependencies>
         <dependency>
@@ -37,16 +70,70 @@
     </dependencies>
 
     <build>
+        <finalName>junrar</finalName>
         <plugins>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.2</version>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.source}</target>
+                    <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>attached</goal>
+                        </goals>
+                        <phase>package</phase>
+                        <configuration>
+                            <finalName>junrar</finalName>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                            <archive>
+                                <manifest>
+                                    <mainClass>nl.ivonet.helper.RarExtractor</mainClass>
+                                </manifest>
+                            </archive>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>sign</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <parent>
+        <groupId>org.sonatype.oss</groupId>
+        <artifactId>oss-parent</artifactId>
+        <version>7</version>
+    </parent>
 
 </project>
