@@ -1,94 +1,83 @@
 /*
  * Copyright (c) 2007 innoSysTec (R) GmbH, Germany. All rights reserved.
  * Original author: Edmund Wagner
- * Creation date: 01.06.2007
  *
- * Source: $HeadURL$
- * Last changed: $LastChangedDate$
- * 
- * the unrar licence applies to all junrar source and binary distributions 
+ * Copyright (c) 2014 IvoNet.nl. All rights reserved
+ * Refactoring and upgrading of original code: Ivo Woltring
+ * Author of all nl.ivonet packaged code: Ivo Woltring
+ *
+ * The original unrar licence applies to all junrar source and binary distributions
  * you are not allowed to use this source to re-create the RAR compression algorithm
- * 
- * Here some html entities which can be used for escaping javadoc tags:
- * "&":  "&#038;" or "&amp;"
- * "<":  "&#060;" or "&lt;"
- * ">":  "&#062;" or "&gt;"
- * "@":  "&#064;" 
  */
+
 package com.github.junrar.unpack;
 
 import com.github.junrar.unpack.vm.VMPreparedProgram;
 
-/**
- * DOCUMENT ME
- * 
- * @author $LastChangedBy$
- * @version $LastChangedRevision$
- */
-public class UnpackFilter {
 
-	private int BlockStart;
+class UnpackFilter {
 
-	private int BlockLength;
+    private int BlockStart;
 
-	private int ExecCount;
+    private int BlockLength;
 
-	private boolean NextWindow;
+    private int ExecCount;
 
-	// position of parent filter in Filters array used as prototype for filter
-	// in PrgStack array. Not defined for filters in Filters array.
-	private int ParentFilter;
+    private boolean NextWindow;
 
-	private VMPreparedProgram Prg  = new VMPreparedProgram();
+    // position of parent filter in Filters array used as prototype for filter
+    // in PrgStack array. Not defined for filters in Filters array.
+    private int ParentFilter;
 
-	public int getBlockLength() {
-		return BlockLength;
-	}
+    private VMPreparedProgram Prg = new VMPreparedProgram();
 
-	public void setBlockLength(int blockLength) {
-		BlockLength = blockLength;
-	}
+    public int getBlockLength() {
+        return this.BlockLength;
+    }
 
-	public int getBlockStart() {
-		return BlockStart;
-	}
+    public void setBlockLength(final int blockLength) {
+        this.BlockLength = blockLength;
+    }
 
-	public void setBlockStart(int blockStart) {
-		BlockStart = blockStart;
-	}
+    public int getBlockStart() {
+        return this.BlockStart;
+    }
 
-	public int getExecCount() {
-		return ExecCount;
-	}
+    public void setBlockStart(final int blockStart) {
+        this.BlockStart = blockStart;
+    }
 
-	public void setExecCount(int execCount) {
-		ExecCount = execCount;
-	}
+    public int getExecCount() {
+        return this.ExecCount;
+    }
 
-	public boolean isNextWindow() {
-		return NextWindow;
-	}
+    public void setExecCount(final int execCount) {
+        this.ExecCount = execCount;
+    }
 
-	public void setNextWindow(boolean nextWindow) {
-		NextWindow = nextWindow;
-	}
+    public boolean isNextWindow() {
+        return this.NextWindow;
+    }
 
-	public int getParentFilter() {
-		return ParentFilter;
-	}
+    public void setNextWindow(final boolean nextWindow) {
+        this.NextWindow = nextWindow;
+    }
 
-	public void setParentFilter(int parentFilter) {
-		ParentFilter = parentFilter;
-	}
+    public int getParentFilter() {
+        return this.ParentFilter;
+    }
 
-	public VMPreparedProgram getPrg() {
-		return Prg;
-	}
+    public void setParentFilter(final int parentFilter) {
+        this.ParentFilter = parentFilter;
+    }
 
-	public void setPrg(VMPreparedProgram prg) {
-		Prg = prg;
-	}
+    public VMPreparedProgram getPrg() {
+        return this.Prg;
+    }
 
-	
-	
+    public void setPrg(final VMPreparedProgram prg) {
+        this.Prg = prg;
+    }
+
+
 }

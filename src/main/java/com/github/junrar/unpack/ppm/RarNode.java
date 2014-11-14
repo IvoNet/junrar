@@ -1,69 +1,47 @@
 /*
  * Copyright (c) 2007 innoSysTec (R) GmbH, Germany. All rights reserved.
  * Original author: Edmund Wagner
- * Creation date: 05.06.2007
  *
- * Source: $HeadURL$
- * Last changed: $LastChangedDate$
- * 
- * the unrar licence applies to all junrar source and binary distributions 
+ * Copyright (c) 2014 IvoNet.nl. All rights reserved
+ * Refactoring and upgrading of original code: Ivo Woltring
+ * Author of all nl.ivonet packaged code: Ivo Woltring
+ *
+ * The original unrar licence applies to all junrar source and binary distributions
  * you are not allowed to use this source to re-create the RAR compression algorithm
- * 
- * Here some html entities which can be used for escaping javadoc tags:
- * "&":  "&#038;" or "&amp;"
- * "<":  "&#060;" or "&lt;"
- * ">":  "&#062;" or "&gt;"
- * "@":  "&#064;" 
  */
+
 package com.github.junrar.unpack.ppm;
 
 import com.github.junrar.io.Raw;
 
 
+class RarNode extends Pointer {
+    public static final int size = 4;
+    private int next; //rarnode pointer
 
-/**
- * DOCUMENT ME
- *
- * @author $LastChangedBy$
- * @version $LastChangedRevision$
- */
-public class RarNode extends Pointer{
-	private int next; //rarnode pointer
+    public RarNode(final byte[] mem) {
+        super(mem);
+    }
 
-	public static final int size = 4;
-	
-	public RarNode(byte[] mem){
-		super(mem);
-	}
-	
-	public int getNext() {
-		if(mem!=null){
-			next = Raw.readIntLittleEndian(mem,  pos);
-		}
-		return next;
-	}
+    public int getNext() {
+        if (this.mem != null) {
+            this.next = Raw.readIntLittleEndian(this.mem, this.pos);
+        }
+        return this.next;
+    }
 
-	public void setNext(RarNode next) {
-		setNext(next.getAddress());
-	}
-	
-	public void setNext(int next) {
-		this.next = next;
-		if(mem!=null){
-			Raw.writeIntLittleEndian(mem, pos, next);
-		}
-	}
+    public void setNext(final int next) {
+        this.next = next;
+        if (this.mem != null) {
+            Raw.writeIntLittleEndian(this.mem, this.pos, next);
+        }
+    }
+
+    public void setNext(final RarNode next) {
+        setNext(next.getAddress());
+    }
 
     public String toString() {
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("State[");
-        buffer.append("\n  pos=");
-        buffer.append(pos);
-        buffer.append("\n  size=");
-        buffer.append(size);
-        buffer.append("\n  next=");
-        buffer.append(getNext());
-        buffer.append("\n]");
-        return buffer.toString();
+        return "State[" + "\n  pos=" + this.pos + "\n  size=" + size + "\n  next=" + getNext() + "\n]";
     }
 }

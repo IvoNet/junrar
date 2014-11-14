@@ -1,20 +1,13 @@
 /*
  * Copyright (c) 2007 innoSysTec (R) GmbH, Germany. All rights reserved.
  * Original author: Edmund Wagner
- * Creation date: 23.05.2007
  *
- * Source: $HeadURL$
- * Last changed: $LastChangedDate$
+ * Copyright (c) 2014 IvoNet.nl. All rights reserved
+ * Refactoring and upgrading of original code: Ivo Woltring
+ * Author of all nl.ivonet packaged code: Ivo Woltring
  *
- * 
- * the unrar licence applies to all junrar source and binary distributions 
+ * The original unrar licence applies to all junrar source and binary distributions
  * you are not allowed to use this source to re-create the RAR compression algorithm
- *
- * Here some html entities which can be used for escaping javadoc tags:
- * "&":  "&#038;" or "&amp;"
- * "<":  "&#060;" or "&lt;"
- * ">":  "&#062;" or "&gt;"
- * "@":  "&#064;" 
  */
 
 package com.github.junrar.rarfile;
@@ -23,48 +16,45 @@ import com.github.junrar.io.Raw;
 
 /**
  * Comment header
- *
- * @author $LastChangedBy$
- * @version $LastChangedRevision$
  */
 public class CommentHeader extends BaseBlock {
-	
-	public static final short commentHeaderSize = 6;
-	
-	private short unpSize;
-	private byte unpVersion;
-	private byte unpMethod;
-	private short commCRC;
-	
-	
-	public CommentHeader(BaseBlock bb, byte[] commentHeader){
-		super(bb);
-		
-		int pos =0;
-		unpSize = Raw.readShortLittleEndian(commentHeader, pos);
-		pos += 2;
-		unpVersion |= commentHeader[pos]&0xff;
-		pos++;
-		
-		unpMethod |= commentHeader[pos]&0xff;
-		pos++;
-		commCRC =Raw.readShortLittleEndian(commentHeader, pos);
-		
-	}
-	
-	public short getCommCRC() {
-		return commCRC;
-	}
-	
-	public byte getUnpMethod() {
-		return unpMethod;
-	}
-	
-	public short getUnpSize() {
-		return unpSize;
-	}
-	
-	public byte getUnpVersion() {
-		return unpVersion;
-	}
+
+    public static final short commentHeaderSize = 6;
+
+    private final short unpSize;
+    private final short commCRC;
+    private byte unpVersion;
+    private byte unpMethod;
+
+
+    public CommentHeader(final BaseBlock bb, final byte[] commentHeader) {
+        super(bb);
+
+        int pos = 0;
+        this.unpSize = Raw.readShortLittleEndian(commentHeader, pos);
+        pos += 2;
+        this.unpVersion |= commentHeader[pos] & 0xff;
+        pos++;
+
+        this.unpMethod |= commentHeader[pos] & 0xff;
+        pos++;
+        this.commCRC = Raw.readShortLittleEndian(commentHeader, pos);
+
+    }
+
+    public short getCommCRC() {
+        return this.commCRC;
+    }
+
+    public byte getUnpMethod() {
+        return this.unpMethod;
+    }
+
+    public short getUnpSize() {
+        return this.unpSize;
+    }
+
+    public byte getUnpVersion() {
+        return this.unpVersion;
+    }
 }

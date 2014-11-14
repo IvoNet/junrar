@@ -1,7 +1,19 @@
 /*
+ * Copyright (c) 2007 innoSysTec (R) GmbH, Germany. All rights reserved.
+ * Original author: Edmund Wagner
+ *
+ * Copyright (c) 2014 IvoNet.nl. All rights reserved
+ * Refactoring and upgrading of original code: Ivo Woltring
+ * Author of all nl.ivonet packaged code: Ivo Woltring
+ *
+ * The original unrar licence applies to all junrar source and binary distributions
+ * you are not allowed to use this source to re-create the RAR compression algorithm
+ */
+
+/*
  * 
  * Original author: alpha_lam
- * Creation date: ?
+ *
  *
  * Source: $HeadURL$
  * Last changed: $LastChangedDate$
@@ -18,59 +30,62 @@
  */
 package com.github.junrar.rarfile;
 
-public class FileNameDecoder {
-	public static int getChar(byte [] name,int pos){ 
-		return name[pos]&0xff; 
-	} 
+final class FileNameDecoder {
+    private FileNameDecoder() {
+    }
 
-	public static String decode(byte [] name,int encPos){ 
-		int decPos = 0; 
-		int flags = 0; 
-		int flagBits = 0; 
+    private static int getChar(final byte[] name, final int pos) {
+        return name[pos] & 0xff;
+    }
 
-		int low = 0; 
-		int high = 0; 
-		int highByte = getChar(name,encPos++); 
-		StringBuffer buf = new StringBuffer(); 
-		while(encPos < name.length){ 
-			if(flagBits == 0){ 
-				flags = getChar(name,encPos++); 
-				flagBits = 8; 
-			} 
-			switch(flags >> 6){ 
-			case 0: 
-				buf.append((char)(getChar(name,encPos++))); 
-				++decPos; 
-				break; 
-			case 1: 
-				buf.append((char)(getChar(name,encPos++)+(highByte<<8))); 
-				++decPos; 
-				break; 
-			case 2: 
-				low = getChar(name,encPos); 
-				high = getChar(name,encPos+1); 
-				buf.append((char)((high << 8) + low)); 
-				++decPos; 
-				encPos += 2; 
-				break; 
-			case 3: 
-				int length = getChar(name,encPos++); 
-				if((length&0x80)!=0){ 
-					int correction = getChar(name,encPos++); 
-					for(length=(length&0x7f)+2;length>0&&decPos<name.length;length--,decPos++){ 
-						low = (getChar(name,decPos) + correction)&0xff; 
-						buf.append((char)((highByte << 8) + low)); 
-					} 
-				}else{ 
-					for(length+=2;length>0&&decPos<name.length;length--,decPos++){ 
-						buf.append((char)(getChar(name,decPos))); 
-					} 
-				} 
-				break; 
-			} 
-			flags = (flags << 2) & 0xff; 
-			flagBits -= 2; 
-		} 
-		return buf.toString(); 
-	} 
+    public static String decode(final byte[] name, int encPos) {
+        int decPos = 0;
+        int flags = 0;
+        int flagBits = 0;
+
+        int low = 0;
+        int high = 0;
+        final int highByte = getChar(name, encPos++);
+        final StringBuilder buf = new StringBuilder();
+        while (encPos < name.length) {
+            if (flagBits == 0) {
+                flags = getChar(name, encPos++);
+                flagBits = 8;
+            }
+            switch (flags >> 6) {
+                case 0:
+                    buf.append((char) (getChar(name, encPos++)));
+                    ++decPos;
+                    break;
+                case 1:
+                    buf.append((char) (getChar(name, encPos++) + (highByte << 8)));
+                    ++decPos;
+                    break;
+                case 2:
+                    low = getChar(name, encPos);
+                    high = getChar(name, encPos + 1);
+                    buf.append((char) ((high << 8) + low));
+                    ++decPos;
+                    encPos += 2;
+                    break;
+                case 3:
+                    int length = getChar(name, encPos++);
+                    if ((length & 0x80) == 0) {
+                        for (length += 2; (length > 0) && (decPos < name.length); length--, decPos++) {
+                            buf.append((char) (getChar(name, decPos)));
+                        }
+                    } else {
+                        final int correction = getChar(name, encPos++);
+                        for (length = (length & 0x7f) + 2; (length > 0) && (decPos < name.length); length--, decPos++) {
+                            low = (getChar(name, decPos) + correction) & 0xff;
+                            buf.append((char) ((highByte << 8) + low));
+                        }
+                    }
+                    break;
+            }
+            flags = (flags << 2) & 0xff;
+            flagBits -= 2;
+        }
+        return buf.toString();
+    }
 }

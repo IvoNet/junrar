@@ -1,27 +1,16 @@
 /*
  * Copyright (c) 2007 innoSysTec (R) GmbH, Germany. All rights reserved.
  * Original author: Edmund Wagner
- * Creation date: 31.05.2007
  *
- * Source: $HeadURL$
- * Last changed: $LastChangedDate$
- * 
- * the unrar licence applies to all junrar source and binary distributions 
+ * Copyright (c) 2014 IvoNet.nl. All rights reserved
+ * Refactoring and upgrading of original code: Ivo Woltring
+ * Author of all nl.ivonet packaged code: Ivo Woltring
+ *
+ * The original unrar licence applies to all junrar source and binary distributions
  * you are not allowed to use this source to re-create the RAR compression algorithm
- * 
- * Here some html entities which can be used for escaping javadoc tags:
- * "&":  "&#038;" or "&amp;"
- * "<":  "&#060;" or "&lt;"
- * ">":  "&#062;" or "&gt;"
- * "@":  "&#064;" 
  */
-package com.github.junrar.unpack;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Vector;
+package com.github.junrar.unpack;
 
 import com.github.junrar.exception.RarException;
 import com.github.junrar.unpack.decode.Compress;
@@ -32,1016 +21,972 @@ import com.github.junrar.unpack.vm.BitInput;
 import com.github.junrar.unpack.vm.RarVM;
 import com.github.junrar.unpack.vm.VMPreparedProgram;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Vector;
 
-/**
- * DOCUMENT ME
- * 
- * @author $LastChangedBy$
- * @version $LastChangedRevision$
- */
+
 public final class Unpack extends Unpack20 {
 
+    private static final int[] DBitLengthCounts = {
+            4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 14, 0, 12
+    };
     private final ModelPPM ppm = new ModelPPM();
-
-    private int ppmEscChar;
-
-    private RarVM rarVM = new RarVM();
+    private final RarVM rarVM = new RarVM();
 
     /* Filters code, one entry per filter */
-    private List<UnpackFilter> filters = new ArrayList<UnpackFilter>();
+    private final List<UnpackFilter> filters = new ArrayList<>();
 
     /* Filters stack, several entrances of same filter are possible */
-    private List<UnpackFilter> prgStack = new ArrayList<UnpackFilter>();
+    private final List<UnpackFilter> prgStack = new ArrayList<>();
 
     /*
      * lengths of preceding blocks, one length per filter. Used to reduce size
      * required to write block length if lengths are repeating
      */
-    private List<Integer> oldFilterLengths = new ArrayList<Integer>();
-
+    private final List<Integer> oldFilterLengths = new ArrayList<>();
+    private final byte[] unpOldTable = new byte[Compress.HUFF_TABLE_SIZE];
+    private int ppmEscChar;
     private int lastFilter;
-
     private boolean tablesRead;
-
-    private byte[] unpOldTable = new byte[Compress.HUFF_TABLE_SIZE];
-
     private BlockTypes unpBlockType;
-
     private long writtenFileSize;
-
     private boolean fileExtracted;
-
     private boolean ppmError;
-
     private int prevLowDist;
-
     private int lowDistRepCount;
 
-    public static int[] DBitLengthCounts = { 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-	    2, 2, 2, 2, 2, 14, 0, 12 };
-
-    public Unpack(ComprDataIO DataIO) {
-	unpIO = DataIO;
-	window = null;
-	suspended = false;
-	unpAllBuf = false;
-	unpSomeRead = false;
+    public Unpack(final ComprDataIO DataIO) {
+        this.unpIO = DataIO;
+        this.window = null;
+        this.suspended = false;
+        this.unpAllBuf = false;
+        this.unpSomeRead = false;
     }
 
-    public void init(byte[] window) {
-	if (window == null) {
-	    this.window = new byte[Compress.MAXWINSIZE];
-	} else {
-	    this.window = window;
-	}
-	inAddr = 0;
-	unpInitData(false);
+    public void init(final byte[] window) {
+        //noinspection UnclearBinaryExpression
+        this.window = window == null ? new byte[Compress.MAXWINSIZE] : window;
+        this.inAddr = 0;
+        unpInitData(false);
     }
 
-    public void doUnpack(int method, boolean solid) throws IOException,
-	    RarException {
-	if (unpIO.getSubHeader().getUnpMethod() == 0x30) {
-	    unstoreFile();
-	}
-	switch (method) {
-	case 15: // rar 1.5 compression
-	    unpack15(solid);
-	    break;
-	case 20: // rar 2.x compression
-	case 26: // files larger than 2GB
-	    unpack20(solid);
-	    break;
-	case 29: // rar 3.x compression
-	case 36: // alternative hash
-	    unpack29(solid);
-	    break;
-	}
+    public void doUnpack(final int method, final boolean solid) throws IOException, RarException {
+        if (this.unpIO.getSubHeader()
+                      .getUnpMethod() == 0x30) {
+            unstoreFile();
+        }
+        switch (method) {
+            case 15: // rar 1.5 compression
+                unpack15(solid);
+                break;
+            case 20: // rar 2.x compression
+            case 26: // files larger than 2GB
+                unpack20(solid);
+                break;
+            case 29: // rar 3.x compression
+            case 36: // alternative hash
+                unpack29(solid);
+                break;
+        }
     }
 
     private void unstoreFile() throws IOException, RarException {
-	byte[] buffer = new byte[0x10000];
-	while (true) {
-	    int code = unpIO.unpRead(buffer, 0, (int) Math.min(buffer.length,
-		    destUnpSize));
-	    if (code == 0 || code == -1)
-		break;
-	    code = code < destUnpSize ? code : (int) destUnpSize;
-	    unpIO.unpWrite(buffer, 0, code);
-	    if (destUnpSize >= 0)
-		destUnpSize -= code;
-	}
+        final byte[] buffer = new byte[0x10000];
+        while (true) {
+            int code = this.unpIO.unpRead(buffer, 0, (int) Math.min(buffer.length, this.destUnpSize));
+            if (code == 0 || code == -1) {
+                break;
+            }
+            code = code < this.destUnpSize ? code : (int) this.destUnpSize;
+            this.unpIO.unpWrite(buffer, 0, code);
+            if (this.destUnpSize >= 0) {
+                this.destUnpSize -= code;
+            }
+        }
 
     }
 
-    private void unpack29(boolean solid) throws IOException, RarException {
+    private void unpack29(final boolean solid) throws IOException, RarException {
 
-	int[] DDecode = new int[Compress.DC];
-	byte[] DBits = new byte[Compress.DC];
+        final int[] DDecode = new int[Compress.DC];
+        final byte[] DBits = new byte[Compress.DC];
 
-	int Bits;
+        int Bits;
 
-	if (DDecode[1] == 0) {
-	    int Dist = 0, BitLength = 0, Slot = 0;
-	    for (int I = 0; I < DBitLengthCounts.length; I++, BitLength++) {
-		int count = DBitLengthCounts[I];
-		for (int J = 0; J < count; J++, Slot++, Dist += (1 << BitLength)) {
-		    DDecode[Slot] = Dist;
-		    DBits[Slot] = (byte) BitLength;
-		}
-	    }
-	}
+        if (DDecode[1] == 0) {
+            int Dist = 0;
+            int BitLength = 0;
+            int Slot = 0;
+            for (int I = 0; I < DBitLengthCounts.length; I++, BitLength++) {
+                final int count = DBitLengthCounts[I];
+                for (int J = 0; J < count; J++, Slot++, Dist += (1 << BitLength)) {
+                    DDecode[Slot] = Dist;
+                    DBits[Slot] = (byte) BitLength;
+                }
+            }
+        }
 
-	fileExtracted = true;
+        this.fileExtracted = true;
 
-	if (!suspended) {
-	    unpInitData(solid);
-	    if (!unpReadBuf()) {
-		return;
-	    }
-	    if ((!solid || !tablesRead) && !readTables()) {
-		return;
-	    }
-	}
+        if (!this.suspended) {
+            unpInitData(solid);
+            if (!unpReadBuf()) {
+                return;
+            }
+            if ((!solid || !this.tablesRead) && !readTables()) {
+                return;
+            }
+        }
 
-	if (ppmError) {
-	    return;
-	}
+        if (this.ppmError) {
+            return;
+        }
 
-	while (true) {
-	    unpPtr &= Compress.MAXWINMASK;
+        while (true) {
+            this.unpPtr &= Compress.MAXWINMASK;
 
-	    if (inAddr > readBorder) {
-		if (!unpReadBuf()) {
-		    break;
-		}
-	    }
-	    // System.out.println(((wrPtr - unpPtr) &
-	    // Compress.MAXWINMASK)+":"+wrPtr+":"+unpPtr);
-	    if (((wrPtr - unpPtr) & Compress.MAXWINMASK) < 260
-		    && wrPtr != unpPtr) {
+            if (this.inAddr > this.readBorder) {
+                if (!unpReadBuf()) {
+                    break;
+                }
+            }
+            if ((((this.wrPtr - this.unpPtr) & Compress.MAXWINMASK) < 260) && (this.wrPtr != this.unpPtr)) {
 
-		UnpWriteBuf();
-		if (writtenFileSize > destUnpSize) {
-		    return;
-		}
-		if (suspended) {
-		    fileExtracted = false;
-		    return;
-		}
-	    }
-	    if (unpBlockType == BlockTypes.BLOCK_PPM) {
-		int Ch = ppm.decodeChar();
-		if (Ch == -1) {
-		    ppmError = true;
-		    break;
-		}
-		if (Ch == ppmEscChar) {
-		    int NextCh = ppm.decodeChar();
-		    if (NextCh == 0) {
-			if (!readTables()) {
-			    break;
-			}
-			continue;
-		    }
-		    if (NextCh == 2 || NextCh == -1) {
-			break;
-		    }
-		    if (NextCh == 3) {
-			if (!readVMCodePPM()) {
-			    break;
-			}
-			continue;
-		    }
-		    if (NextCh == 4) {
-			int Distance = 0, Length = 0;
-			boolean failed = false;
-			for (int I = 0; I < 4 && !failed; I++) {
-			    int ch = ppm.decodeChar();
-			    if (ch == -1) {
-				failed = true;
-			    } else {
-				if (I == 3) {
-				    // Bug fixed
-				    Length = ch & 0xff;
-				} else {
-				    // Bug fixed
-				    Distance = (Distance << 8) + (ch & 0xff);
-				}
-			    }
-			}
-			if (failed) {
-			    break;
-			}
-			copyString(Length + 32, Distance + 2);
-			continue;
-		    }
-		    if (NextCh == 5) {
-			int Length = ppm.decodeChar();
-			if (Length == -1) {
-			    break;
-			}
-			copyString(Length + 4, 1);
-			continue;
-		    }
-		}
-		window[unpPtr++] = (byte) Ch;
-		continue;
-	    }
+                UnpWriteBuf();
+                if (this.writtenFileSize > this.destUnpSize) {
+                    return;
+                }
+                if (this.suspended) {
+                    this.fileExtracted = false;
+                    return;
+                }
+            }
+            if (this.unpBlockType == BlockTypes.BLOCK_PPM) {
+                final int Ch = this.ppm.decodeChar();
+                if (Ch == -1) {
+                    this.ppmError = true;
+                    break;
+                }
+                if (Ch == this.ppmEscChar) {
+                    final int NextCh = this.ppm.decodeChar();
+                    if (NextCh == 0) {
+                        if (!readTables()) {
+                            break;
+                        }
+                        continue;
+                    }
+                    if ((NextCh == 2) || (NextCh == -1)) {
+                        break;
+                    }
+                    if (NextCh == 3) {
+                        if (!readVMCodePPM()) {
+                            break;
+                        }
+                        continue;
+                    }
+                    if (NextCh == 4) {
+                        int Distance = 0;
+                        int Length = 0;
+                        boolean failed = false;
+                        for (int I = 0; (I < 4) && !failed; I++) {
+                            final int ch = this.ppm.decodeChar();
+                            if (ch == -1) {
+                                failed = true;
+                            } else {
+                                if (I == 3) {
+                                    // Bug fixed
+                                    Length = ch & 0xff;
+                                } else {
+                                    // Bug fixed
+                                    Distance = (Distance << 8) + (ch & 0xff);
+                                }
+                            }
+                        }
+                        if (failed) {
+                            break;
+                        }
+                        copyString(Length + 32, Distance + 2);
+                        continue;
+                    }
+                    if (NextCh == 5) {
+                        final int Length = this.ppm.decodeChar();
+                        if (Length == -1) {
+                            break;
+                        }
+                        copyString(Length + 4, 1);
+                        continue;
+                    }
+                }
+                this.window[this.unpPtr++] = (byte) Ch;
+                continue;
+            }
 
-	    int Number = decodeNumber(LD);
-	    if (Number < 256) {
-		window[unpPtr++] = (byte) Number;
-		continue;
-	    }
-	    if (Number >= 271) {
-		int Length = LDecode[Number -= 271] + 3;
-		if ((Bits = LBits[Number]) > 0) {
-		    Length += getbits() >>> (16 - Bits);
-		    addbits(Bits);
-		}
+            int Number = decodeNumber(this.LD);
+            if (Number < 256) {
+                this.window[this.unpPtr++] = (byte) Number;
+                continue;
+            }
+            if (Number >= 271) {
+                int Length = LDecode[Number -= 271] + 3;
+                if ((Bits = LBits[Number]) > 0) {
+                    Length += getbits() >>> (16 - Bits);
+                    addbits(Bits);
+                }
 
-		int DistNumber = decodeNumber(DD);
-		int Distance = DDecode[DistNumber] + 1;
-		if ((Bits = DBits[DistNumber]) > 0) {
-		    if (DistNumber > 9) {
-			if (Bits > 4) {
-			    Distance += ((getbits() >>> (20 - Bits)) << 4);
-			    addbits(Bits - 4);
-			}
-			if (lowDistRepCount > 0) {
-			    lowDistRepCount--;
-			    Distance += prevLowDist;
-			} else {
-			    int LowDist = decodeNumber(LDD);
-			    if (LowDist == 16) {
-				lowDistRepCount = Compress.LOW_DIST_REP_COUNT - 1;
-				Distance += prevLowDist;
-			    } else {
-				Distance += LowDist;
-				prevLowDist = LowDist;
-			    }
-			}
-		    } else {
-			Distance += getbits() >>> (16 - Bits);
-			addbits(Bits);
-		    }
-		}
+                final int DistNumber = decodeNumber(this.DD);
+                int Distance = DDecode[DistNumber] + 1;
+                if ((Bits = DBits[DistNumber]) > 0) {
+                    if (DistNumber > 9) {
+                        if (Bits > 4) {
+                            Distance += ((getbits() >>> (20 - Bits)) << 4);
+                            addbits(Bits - 4);
+                        }
+                        if (this.lowDistRepCount > 0) {
+                            this.lowDistRepCount--;
+                            Distance += this.prevLowDist;
+                        } else {
+                            final int LowDist = decodeNumber(this.LDD);
+                            if (LowDist == 16) {
+                                this.lowDistRepCount = Compress.LOW_DIST_REP_COUNT - 1;
+                                Distance += this.prevLowDist;
+                            } else {
+                                Distance += LowDist;
+                                this.prevLowDist = LowDist;
+                            }
+                        }
+                    } else {
+                        Distance += getbits() >>> (16 - Bits);
+                        addbits(Bits);
+                    }
+                }
 
-		if (Distance >= 0x2000) {
-		    Length++;
-		    if (Distance >= 0x40000L) {
-			Length++;
-		    }
-		}
+                if (Distance >= 0x2000) {
+                    Length++;
+                    if (Distance >= 0x40000L) {
+                        Length++;
+                    }
+                }
 
-		insertOldDist(Distance);
-		insertLastMatch(Length, Distance);
+                insertOldDist(Distance);
+                insertLastMatch(Length, Distance);
 
-		copyString(Length, Distance);
-		continue;
-	    }
-	    if (Number == 256) {
-		if (!readEndOfBlock()) {
-		    break;
-		}
-		continue;
-	    }
-	    if (Number == 257) {
-		if (!readVMCode()) {
-		    break;
-		}
-		continue;
-	    }
-	    if (Number == 258) {
-		if (lastLength != 0) {
-		    copyString(lastLength, lastDist);
-		}
-		continue;
-	    }
-	    if (Number < 263) {
-		int DistNum = Number - 259;
-		int Distance = oldDist[DistNum];
-		for (int I = DistNum; I > 0; I--) {
-		    oldDist[I] = oldDist[I - 1];
-		}
-		oldDist[0] = Distance;
+                copyString(Length, Distance);
+                continue;
+            }
+            if (Number == 256) {
+                if (!readEndOfBlock()) {
+                    break;
+                }
+                continue;
+            }
+            if (Number == 257) {
+                if (!readVMCode()) {
+                    break;
+                }
+                continue;
+            }
+            if (Number == 258) {
+                if (this.lastLength != 0) {
+                    copyString(this.lastLength, this.lastDist);
+                }
+                continue;
+            }
+            if (Number < 263) {
+                final int DistNum = Number - 259;
+                final int Distance = this.oldDist[DistNum];
+                System.arraycopy(this.oldDist, 0, this.oldDist, 1, DistNum);
+                this.oldDist[0] = Distance;
 
-		int LengthNumber = decodeNumber(RD);
-		int Length = LDecode[LengthNumber] + 2;
-		if ((Bits = LBits[LengthNumber]) > 0) {
-		    Length += getbits() >>> (16 - Bits);
-		    addbits(Bits);
-		}
-		insertLastMatch(Length, Distance);
-		copyString(Length, Distance);
-		continue;
-	    }
-	    if (Number < 272) {
-		int Distance = SDDecode[Number -= 263] + 1;
-		if ((Bits = SDBits[Number]) > 0) {
-		    Distance += getbits() >>> (16 - Bits);
-		    addbits(Bits);
-		}
-		insertOldDist(Distance);
-		insertLastMatch(2, Distance);
-		copyString(2, Distance);
-		continue;
-	    }
-	}
-	UnpWriteBuf();
+                final int LengthNumber = decodeNumber(this.RD);
+                int Length = LDecode[LengthNumber] + 2;
+                if ((Bits = LBits[LengthNumber]) > 0) {
+                    Length += getbits() >>> (16 - Bits);
+                    addbits(Bits);
+                }
+                insertLastMatch(Length, Distance);
+                copyString(Length, Distance);
+                continue;
+            }
+            if (Number < 272) {
+                int Distance = SDDecode[Number -= 263] + 1;
+                if ((Bits = SDBits[Number]) > 0) {
+                    Distance += getbits() >>> (16 - Bits);
+                    addbits(Bits);
+                }
+                insertOldDist(Distance);
+                insertLastMatch(2, Distance);
+                copyString(2, Distance);
+            }
+        }
+        UnpWriteBuf();
 
     }
 
     private void UnpWriteBuf() throws IOException {
-	int WrittenBorder = wrPtr;
-	int WriteSize = (unpPtr - WrittenBorder) & Compress.MAXWINMASK;
-	for (int I = 0; I < prgStack.size(); I++) {
-	    UnpackFilter flt = prgStack.get(I);
-	    if (flt == null) {
-		continue;
-	    }
-	    if (flt.isNextWindow()) {
-		flt.setNextWindow(false);// ->NextWindow=false;
-		continue;
-	    }
-	    int BlockStart = flt.getBlockStart();// ->BlockStart;
-	    int BlockLength = flt.getBlockLength();// ->BlockLength;
-	    if (((BlockStart - WrittenBorder) & Compress.MAXWINMASK) < WriteSize) {
-		if (WrittenBorder != BlockStart) {
-		    UnpWriteArea(WrittenBorder, BlockStart);
-		    WrittenBorder = BlockStart;
-		    WriteSize = (unpPtr - WrittenBorder) & Compress.MAXWINMASK;
-		}
-		if (BlockLength <= WriteSize) {
-		    int BlockEnd = (BlockStart + BlockLength)
-			    & Compress.MAXWINMASK;
-		    if (BlockStart < BlockEnd || BlockEnd == 0) {
-			// VM.SetMemory(0,Window+BlockStart,BlockLength);
-			rarVM.setMemory(0, window, BlockStart, BlockLength);
-		    } else {
-			int FirstPartLength = Compress.MAXWINSIZE - BlockStart;
-			// VM.SetMemory(0,Window+BlockStart,FirstPartLength);
-			rarVM.setMemory(0, window, BlockStart, FirstPartLength);
-			// VM.SetMemory(FirstPartLength,Window,BlockEnd);
-			rarVM.setMemory(FirstPartLength, window, 0, BlockEnd);
+        int WrittenBorder = this.wrPtr;
+        int WriteSize = (this.unpPtr - WrittenBorder) & Compress.MAXWINMASK;
+        for (int I = 0; I < this.prgStack.size(); I++) {
+            final UnpackFilter flt = this.prgStack.get(I);
+            if (flt == null) {
+                continue;
+            }
+            if (flt.isNextWindow()) {
+                flt.setNextWindow(false);// ->NextWindow=false;
+                continue;
+            }
+            final int BlockStart = flt.getBlockStart();// ->BlockStart;
+            final int BlockLength = flt.getBlockLength();// ->BlockLength;
+            if (((BlockStart - WrittenBorder) & Compress.MAXWINMASK) < WriteSize) {
+                if (WrittenBorder != BlockStart) {
+                    UnpWriteArea(WrittenBorder, BlockStart);
+                    WrittenBorder = BlockStart;
+                    WriteSize = (this.unpPtr - WrittenBorder) & Compress.MAXWINMASK;
+                }
+                if (BlockLength <= WriteSize) {
+                    final int BlockEnd = (BlockStart + BlockLength) & Compress.MAXWINMASK;
+                    if ((BlockStart < BlockEnd) || (BlockEnd == 0)) {
+                        // VM.SetMemory(0,Window+BlockStart,BlockLength);
+                        this.rarVM.setMemory(0, this.window, BlockStart, BlockLength);
+                    } else {
+                        final int FirstPartLength = Compress.MAXWINSIZE - BlockStart;
+                        // VM.SetMemory(0,Window+BlockStart,FirstPartLength);
+                        this.rarVM.setMemory(0, this.window, BlockStart, FirstPartLength);
+                        // VM.SetMemory(FirstPartLength,Window,BlockEnd);
+                        this.rarVM.setMemory(FirstPartLength, this.window, 0, BlockEnd);
 
-		    }
+                    }
 
-		    VMPreparedProgram ParentPrg = filters.get(
-			    flt.getParentFilter()).getPrg();
-		    VMPreparedProgram Prg = flt.getPrg();
+                    final VMPreparedProgram ParentPrg = this.filters.get(flt.getParentFilter())
+                                                                    .getPrg();
+                    final VMPreparedProgram Prg = flt.getPrg();
 
-		    if (ParentPrg.getGlobalData().size() > RarVM.VM_FIXEDGLOBALSIZE) {
-			// copy global data from previous script execution if
-			// any
-			// Prg->GlobalData.Alloc(ParentPrg->GlobalData.Size());
-			// memcpy(&Prg->GlobalData[VM_FIXEDGLOBALSIZE],&ParentPrg->GlobalData[VM_FIXEDGLOBALSIZE],ParentPrg->GlobalData.Size()-VM_FIXEDGLOBALSIZE);
-			Prg.getGlobalData().setSize(
-				ParentPrg.getGlobalData().size());
-			for (int i = 0; i < ParentPrg.getGlobalData().size()
-				- RarVM.VM_FIXEDGLOBALSIZE; i++) {
-			    Prg.getGlobalData().set(
-				    RarVM.VM_FIXEDGLOBALSIZE + i,
-				    ParentPrg.getGlobalData().get(
-					    RarVM.VM_FIXEDGLOBALSIZE + i));
-			}
-		    }
+                    if (ParentPrg.getGlobalData()
+                                 .size() > RarVM.VM_FIXEDGLOBALSIZE) {
+                        Prg.getGlobalData()
+                           .setSize(ParentPrg.getGlobalData()
+                                             .size());
+                        for (int i = 0; i < (ParentPrg.getGlobalData()
+                                                      .size() - RarVM.VM_FIXEDGLOBALSIZE); i++) {
+                            Prg.getGlobalData()
+                               .set(RarVM.VM_FIXEDGLOBALSIZE + i, ParentPrg.getGlobalData()
+                                                                           .get(RarVM.VM_FIXEDGLOBALSIZE + i));
+                        }
+                    }
 
-		    ExecuteCode(Prg);
+                    ExecuteCode(Prg);
 
-		    if (Prg.getGlobalData().size() > RarVM.VM_FIXEDGLOBALSIZE) {
-			// save global data for next script execution
-			if (ParentPrg.getGlobalData().size() < Prg
-				.getGlobalData().size()) {
-			    ParentPrg.getGlobalData().setSize(
-				    Prg.getGlobalData().size());// ->GlobalData.Alloc(Prg->GlobalData.Size());
-			}
-			// memcpy(&ParentPrg->GlobalData[VM_FIXEDGLOBALSIZE],&Prg->GlobalData[VM_FIXEDGLOBALSIZE],Prg->GlobalData.Size()-VM_FIXEDGLOBALSIZE);
-			for (int i = 0; i < Prg.getGlobalData().size()
-				- RarVM.VM_FIXEDGLOBALSIZE; i++) {
-			    ParentPrg.getGlobalData().set(
-				    RarVM.VM_FIXEDGLOBALSIZE + i,
-				    Prg.getGlobalData().get(
-					    RarVM.VM_FIXEDGLOBALSIZE + i));
-			}
-		    } else {
-			ParentPrg.getGlobalData().clear();
-		    }
+                    if (Prg.getGlobalData()
+                           .size() > RarVM.VM_FIXEDGLOBALSIZE) {
+                        // save global data for next script execution
+                        if (ParentPrg.getGlobalData()
+                                     .size() < Prg.getGlobalData()
+                                                  .size()) {
+                            ParentPrg.getGlobalData()
+                                     .setSize(Prg.getGlobalData()
+                                                 .size());// ->GlobalData.Alloc(Prg->GlobalData.Size());
+                        }
+                        for (int i = 0; i < (Prg.getGlobalData()
+                                                .size() - RarVM.VM_FIXEDGLOBALSIZE); i++) {
+                            ParentPrg.getGlobalData()
+                                     .set(RarVM.VM_FIXEDGLOBALSIZE + i, Prg.getGlobalData()
+                                                                           .get(RarVM.VM_FIXEDGLOBALSIZE + i));
+                        }
+                    } else {
+                        ParentPrg.getGlobalData()
+                                 .clear();
+                    }
 
-		    int FilteredDataOffset = Prg.getFilteredDataOffset();
-		    int FilteredDataSize = Prg.getFilteredDataSize();
-		    byte[] FilteredData = new byte[FilteredDataSize];
+                    int FilteredDataOffset = Prg.getFilteredDataOffset();
+                    int FilteredDataSize = Prg.getFilteredDataSize();
+                    byte[] FilteredData = new byte[FilteredDataSize];
 
-		    for (int i = 0; i < FilteredDataSize; i++) {
-			FilteredData[i] = rarVM.getMem()[FilteredDataOffset + i];// Prg.getGlobalData().get(FilteredDataOffset
-										 // +
-										 // i);
-		    }
+                    System.arraycopy(this.rarVM.getMem(), FilteredDataOffset, FilteredData, 0, FilteredDataSize);
 
-		    prgStack.set(I, null);
-		    while (I + 1 < prgStack.size()) {
-			UnpackFilter NextFilter = prgStack.get(I + 1);
-			if (NextFilter == null
-				|| NextFilter.getBlockStart() != BlockStart
-				|| NextFilter.getBlockLength() != FilteredDataSize
-				|| NextFilter.isNextWindow()) {
-			    break;
-			}
-			// apply several filters to same data block
+                    this.prgStack.set(I, null);
+                    while ((I + 1) < this.prgStack.size()) {
+                        final UnpackFilter NextFilter = this.prgStack.get(I + 1);
+                        if (NextFilter == null || NextFilter.getBlockStart() != BlockStart
+                            || NextFilter.getBlockLength() != FilteredDataSize || NextFilter.isNextWindow()) {
+                            break;
+                        }
+                        // apply several filters to same data block
 
-			rarVM.setMemory(0, FilteredData, 0, FilteredDataSize);// .SetMemory(0,FilteredData,FilteredDataSize);
+                        this.rarVM.setMemory(0, FilteredData, 0,
+                                             FilteredDataSize);// .SetMemory(0,FilteredData,FilteredDataSize);
 
-			VMPreparedProgram pPrg = filters.get(
-				NextFilter.getParentFilter()).getPrg();
-			VMPreparedProgram NextPrg = NextFilter.getPrg();
+                        final VMPreparedProgram pPrg = this.filters.get(NextFilter.getParentFilter())
+                                                                   .getPrg();
+                        final VMPreparedProgram NextPrg = NextFilter.getPrg();
 
-			if (pPrg.getGlobalData().size() > RarVM.VM_FIXEDGLOBALSIZE) {
-			    // copy global data from previous script execution
-			    // if any
-			    // NextPrg->GlobalData.Alloc(ParentPrg->GlobalData.Size());
-			    NextPrg.getGlobalData().setSize(
-				    pPrg.getGlobalData().size());
-			    // memcpy(&NextPrg->GlobalData[VM_FIXEDGLOBALSIZE],&ParentPrg->GlobalData[VM_FIXEDGLOBALSIZE],ParentPrg->GlobalData.Size()-VM_FIXEDGLOBALSIZE);
-			    for (int i = 0; i < pPrg.getGlobalData().size()
-				    - RarVM.VM_FIXEDGLOBALSIZE; i++) {
-				NextPrg.getGlobalData().set(
-					RarVM.VM_FIXEDGLOBALSIZE + i,
-					pPrg.getGlobalData().get(
-						RarVM.VM_FIXEDGLOBALSIZE + i));
-			    }
-			}
+                        if (pPrg.getGlobalData()
+                                .size() > RarVM.VM_FIXEDGLOBALSIZE) {
+                            NextPrg.getGlobalData()
+                                   .setSize(pPrg.getGlobalData()
+                                                .size());
+                            for (int i = 0; i < (pPrg.getGlobalData()
+                                                     .size() - RarVM.VM_FIXEDGLOBALSIZE); i++) {
+                                NextPrg.getGlobalData()
+                                       .set(RarVM.VM_FIXEDGLOBALSIZE + i, pPrg.getGlobalData()
+                                                                              .get(RarVM.VM_FIXEDGLOBALSIZE + i));
+                            }
+                        }
 
-			ExecuteCode(NextPrg);
+                        ExecuteCode(NextPrg);
 
-			if (NextPrg.getGlobalData().size() > RarVM.VM_FIXEDGLOBALSIZE) {
-			    // save global data for next script execution
-			    if (pPrg.getGlobalData().size() < NextPrg
-				    .getGlobalData().size()) {
-				pPrg.getGlobalData().setSize(
-					NextPrg.getGlobalData().size());
-			    }
-			    // memcpy(&ParentPrg->GlobalData[VM_FIXEDGLOBALSIZE],&NextPrg->GlobalData[VM_FIXEDGLOBALSIZE],NextPrg->GlobalData.Size()-VM_FIXEDGLOBALSIZE);
-			    for (int i = 0; i < NextPrg.getGlobalData().size()
-				    - RarVM.VM_FIXEDGLOBALSIZE; i++) {
-				pPrg.getGlobalData().set(
-					RarVM.VM_FIXEDGLOBALSIZE + i,
-					NextPrg.getGlobalData().get(
-						RarVM.VM_FIXEDGLOBALSIZE + i));
-			    }
-			} else {
-			    pPrg.getGlobalData().clear();
-			}
-			FilteredDataOffset = NextPrg.getFilteredDataOffset();
-			FilteredDataSize = NextPrg.getFilteredDataSize();
+                        if (NextPrg.getGlobalData()
+                                   .size() > RarVM.VM_FIXEDGLOBALSIZE) {
+                            // save global data for next script execution
+                            if (pPrg.getGlobalData()
+                                    .size() < NextPrg.getGlobalData()
+                                                     .size()) {
+                                pPrg.getGlobalData()
+                                    .setSize(NextPrg.getGlobalData()
+                                                    .size());
+                            }
+                            for (int i = 0; i < (NextPrg.getGlobalData()
+                                                        .size() - RarVM.VM_FIXEDGLOBALSIZE); i++) {
+                                pPrg.getGlobalData()
+                                    .set(RarVM.VM_FIXEDGLOBALSIZE + i, NextPrg.getGlobalData()
+                                                                              .get(RarVM.VM_FIXEDGLOBALSIZE + i));
+                            }
+                        } else {
+                            pPrg.getGlobalData()
+                                .clear();
+                        }
+                        FilteredDataOffset = NextPrg.getFilteredDataOffset();
+                        FilteredDataSize = NextPrg.getFilteredDataSize();
 
-			FilteredData = new byte[FilteredDataSize];
-			for (int i = 0; i < FilteredDataSize; i++) {
-			    FilteredData[i] = NextPrg.getGlobalData().get(
-				    FilteredDataOffset + i);
-			}
+                        FilteredData = new byte[FilteredDataSize];
+                        for (int i = 0; i < FilteredDataSize; i++) {
+                            FilteredData[i] = NextPrg.getGlobalData()
+                                                     .get(FilteredDataOffset + i);
+                        }
 
-			I++;
-			prgStack.set(I, null);
-		    }
-		    unpIO.unpWrite(FilteredData, 0, FilteredDataSize);
-		    unpSomeRead = true;
-		    writtenFileSize += FilteredDataSize;
-		    WrittenBorder = BlockEnd;
-		    WriteSize = (unpPtr - WrittenBorder) & Compress.MAXWINMASK;
-		} else {
-		    for (int J = I; J < prgStack.size(); J++) {
-			UnpackFilter filt = prgStack.get(J);
-			if (filt != null && filt.isNextWindow()) {
-			    filt.setNextWindow(false);
-			}
-		    }
-		    wrPtr = WrittenBorder;
-		    return;
-		}
-	    }
-	}
+                        I++;
+                        this.prgStack.set(I, null);
+                    }
+                    this.unpIO.unpWrite(FilteredData, 0, FilteredDataSize);
+                    this.unpSomeRead = true;
+                    this.writtenFileSize += FilteredDataSize;
+                    WrittenBorder = BlockEnd;
+                    WriteSize = (this.unpPtr - WrittenBorder) & Compress.MAXWINMASK;
+                } else {
+                    for (int J = I; J < this.prgStack.size(); J++) {
+                        final UnpackFilter filt = this.prgStack.get(J);
+                        if (filt != null && filt.isNextWindow()) {
+                            filt.setNextWindow(false);
+                        }
+                    }
+                    this.wrPtr = WrittenBorder;
+                    return;
+                }
+            }
+        }
 
-	UnpWriteArea(WrittenBorder, unpPtr);
-	wrPtr = unpPtr;
+        UnpWriteArea(WrittenBorder, this.unpPtr);
+        this.wrPtr = this.unpPtr;
 
     }
 
-    private void UnpWriteArea(int startPtr, int endPtr) throws IOException {
-	if (endPtr != startPtr) {
-	    unpSomeRead = true;
-	}
-	if (endPtr < startPtr) {
-	    UnpWriteData(window, startPtr, -startPtr & Compress.MAXWINMASK);
-	    UnpWriteData(window, 0, endPtr);
-	    unpAllBuf = true;
-	} else {
-	    UnpWriteData(window, startPtr, endPtr - startPtr);
-	}
+    private void UnpWriteArea(final int startPtr, final int endPtr) throws IOException {
+        if (endPtr != startPtr) {
+            this.unpSomeRead = true;
+        }
+        if (endPtr < startPtr) {
+            UnpWriteData(this.window, startPtr, -startPtr & Compress.MAXWINMASK);
+            UnpWriteData(this.window, 0, endPtr);
+            this.unpAllBuf = true;
+        } else {
+            UnpWriteData(this.window, startPtr, endPtr - startPtr);
+        }
     }
 
-    private void UnpWriteData(byte[] data, int offset, int size)
-	    throws IOException {
-	if (writtenFileSize >= destUnpSize) {
-	    return;
-	}
-	int writeSize = size;
-	long leftToWrite = destUnpSize - writtenFileSize;
-	if (writeSize > leftToWrite) {
-	    writeSize = (int) leftToWrite;
-	}
-	unpIO.unpWrite(data, offset, writeSize);
+    private void UnpWriteData(final byte[] data, final int offset, final int size) throws IOException {
+        if (this.writtenFileSize >= this.destUnpSize) {
+            return;
+        }
+        int writeSize = size;
+        final long leftToWrite = this.destUnpSize - this.writtenFileSize;
+        if (writeSize > leftToWrite) {
+            writeSize = (int) leftToWrite;
+        }
+        this.unpIO.unpWrite(data, offset, writeSize);
 
-	writtenFileSize += size;
+        this.writtenFileSize += size;
 
     }
 
-    private void insertOldDist(int distance) {
-	oldDist[3] = oldDist[2];
-	oldDist[2] = oldDist[1];
-	oldDist[1] = oldDist[0];
-	oldDist[0] = distance;
+    private void insertOldDist(final int distance) {
+        this.oldDist[3] = this.oldDist[2];
+        this.oldDist[2] = this.oldDist[1];
+        this.oldDist[1] = this.oldDist[0];
+        this.oldDist[0] = distance;
     }
 
-    private void insertLastMatch(int length, int distance) {
-	lastDist = distance;
-	lastLength = length;
+    private void insertLastMatch(final int length, final int distance) {
+        this.lastDist = distance;
+        this.lastLength = length;
     }
 
-    private void copyString(int length, int distance) {
-	// System.out.println("copyString(" + length + ", " + distance + ")");
+    private void copyString(int length, final int distance) {
+        // System.out.println("copyString(" + length + ", " + distance + ")");
 
-	int destPtr = unpPtr - distance;
-	// System.out.println(unpPtr+":"+distance);
-	if (destPtr >= 0 && destPtr < Compress.MAXWINSIZE - 260
-		&& unpPtr < Compress.MAXWINSIZE - 260) {
+        int destPtr = this.unpPtr - distance;
+        // System.out.println(unpPtr+":"+distance);
+        if (destPtr >= 0 && destPtr < Compress.MAXWINSIZE - 260 && this.unpPtr < Compress.MAXWINSIZE - 260) {
 
-	    window[unpPtr++] = window[destPtr++];
+            this.window[this.unpPtr++] = this.window[destPtr++];
 
-	    while (--length > 0)
+            while (--length > 0)
 
-		window[unpPtr++] = window[destPtr++];
-	} else
-	    while (length-- != 0) {
-		window[unpPtr] = window[destPtr++ & Compress.MAXWINMASK];
-		unpPtr = (unpPtr + 1) & Compress.MAXWINMASK;
-	    }
+            {
+                this.window[this.unpPtr++] = this.window[destPtr++];
+            }
+        } else {
+            while (length-- != 0) {
+                this.window[this.unpPtr] = this.window[destPtr++ & Compress.MAXWINMASK];
+                this.unpPtr = (this.unpPtr + 1) & Compress.MAXWINMASK;
+            }
+        }
     }
 
-    protected void unpInitData(boolean solid) {
-	if (!solid) {
-	    tablesRead = false;
-	    Arrays.fill(oldDist, 0); // memset(oldDist,0,sizeof(OldDist));
+    @Override
+    protected void unpInitData(final boolean solid) {
+        if (!solid) {
+            this.tablesRead = false;
+            Arrays.fill(this.oldDist, 0); // memset(oldDist,0,sizeof(OldDist));
 
-	    oldDistPtr = 0;
-	    lastDist = 0;
-	    lastLength = 0;
+            this.oldDistPtr = 0;
+            this.lastDist = 0;
+            this.lastLength = 0;
 
-	    Arrays.fill(unpOldTable, (byte) 0);// memset(UnpOldTable,0,sizeof(UnpOldTable));
+            Arrays.fill(this.unpOldTable, (byte) 0);// memset(UnpOldTable,0,sizeof(UnpOldTable));
 
-	    unpPtr = 0;
-	    wrPtr = 0;
-	    ppmEscChar = 2;
+            this.unpPtr = 0;
+            this.wrPtr = 0;
+            this.ppmEscChar = 2;
 
-	    initFilters();
-	}
-	InitBitInput();
-	ppmError = false;
-	writtenFileSize = 0;
-	readTop = 0;
-	readBorder = 0;
-	unpInitData20(solid);
+            initFilters();
+        }
+        InitBitInput();
+        this.ppmError = false;
+        this.writtenFileSize = 0;
+        this.readTop = 0;
+        this.readBorder = 0;
+        unpInitData20(solid);
     }
 
     private void initFilters() {
-	oldFilterLengths.clear();
-	lastFilter = 0;
+        this.oldFilterLengths.clear();
+        this.lastFilter = 0;
 
-	filters.clear();
+        this.filters.clear();
 
-	prgStack.clear();
+        this.prgStack.clear();
     }
 
     private boolean readEndOfBlock() throws IOException, RarException {
-	int BitField = getbits();
-	boolean NewTable, NewFile = false;
-	if ((BitField & 0x8000) != 0) {
-	    NewTable = true;
-	    addbits(1);
-	} else {
-	    NewFile = true;
-	    NewTable = (BitField & 0x4000) != 0 ? true : false;
-	    addbits(2);
-	}
-	tablesRead = !NewTable;
-	return !(NewFile || NewTable && !readTables());
+        final int BitField = getbits();
+        final boolean NewTable;
+        boolean NewFile = false;
+        if ((BitField & 0x8000) == 0) {
+            NewFile = true;
+            NewTable = ((BitField & 0x4000) != 0);
+            addbits(2);
+        } else {
+            NewTable = true;
+            addbits(1);
+        }
+        this.tablesRead = !NewTable;
+        return !(NewFile || !readTables());
     }
 
     private boolean readTables() throws IOException, RarException {
-	byte[] bitLength = new byte[Compress.BC];
+        final byte[] bitLength = new byte[Compress.BC];
 
-	byte[] table = new byte[Compress.HUFF_TABLE_SIZE];
-	if (inAddr > readTop - 25) {
-	    if (!unpReadBuf()) {
-		return (false);
-	    }
-	}
-	faddbits((8 - inBit) & 7);
-	long bitField = fgetbits() & 0xffFFffFF;
-	if ((bitField & 0x8000) != 0) {
-	    unpBlockType = BlockTypes.BLOCK_PPM;
-	    return (ppm.decodeInit(this, ppmEscChar));
-	}
-	unpBlockType = BlockTypes.BLOCK_LZ;
+        final byte[] table = new byte[Compress.HUFF_TABLE_SIZE];
+        if (this.inAddr > (this.readTop - 25)) {
+            if (!unpReadBuf()) {
+                return (false);
+            }
+        }
+        faddbits((8 - this.inBit) & 7);
+        final long bitField = fgetbits();
+        if ((bitField & 0x8000) != 0) {
+            this.unpBlockType = BlockTypes.BLOCK_PPM;
+            return (this.ppm.decodeInit(this, this.ppmEscChar));
+        }
+        this.unpBlockType = BlockTypes.BLOCK_LZ;
 
-	prevLowDist = 0;
-	lowDistRepCount = 0;
+        this.prevLowDist = 0;
+        this.lowDistRepCount = 0;
 
-	if ((bitField & 0x4000) == 0) {
-	    Arrays.fill(unpOldTable, (byte) 0);// memset(UnpOldTable,0,sizeof(UnpOldTable));
-	}
-	faddbits(2);
+        if ((bitField & 0x4000) == 0) {
+            Arrays.fill(this.unpOldTable, (byte) 0);// memset(UnpOldTable,0,sizeof(UnpOldTable));
+        }
+        faddbits(2);
 
-	for (int i = 0; i < Compress.BC; i++) {
-	    int length = (fgetbits() >>> 12) & 0xFF;
-	    faddbits(4);
-	    if (length == 15) {
-		int zeroCount = (fgetbits() >>> 12) & 0xFF;
-		faddbits(4);
-		if (zeroCount == 0) {
-		    bitLength[i] = 15;
-		} else {
-		    zeroCount += 2;
-		    while (zeroCount-- > 0 && i < bitLength.length) {
-			bitLength[i++] = 0;
-		    }
-		    i--;
-		}
-	    } else {
-		bitLength[i] = (byte) length;
-	    }
-	}
+        for (int i = 0; i < Compress.BC; i++) {
+            final int length = (fgetbits() >>> 12) & 0xFF;
+            faddbits(4);
+            if (length == 15) {
+                int zeroCount = (fgetbits() >>> 12) & 0xFF;
+                faddbits(4);
+                if (zeroCount == 0) {
+                    bitLength[i] = 15;
+                } else {
+                    zeroCount += 2;
+                    while ((zeroCount-- > 0) && (i < bitLength.length)) {
+                        bitLength[i++] = 0;
+                    }
+                    i--;
+                }
+            } else {
+                bitLength[i] = (byte) length;
+            }
+        }
 
-	makeDecodeTables(bitLength, 0, BD, Compress.BC);
+        makeDecodeTables(bitLength, 0, this.BD, Compress.BC);
 
-	int TableSize = Compress.HUFF_TABLE_SIZE;
+        final int TableSize = Compress.HUFF_TABLE_SIZE;
 
-	for (int i = 0; i < TableSize;) {
-	    if (inAddr > readTop - 5) {
-		if (!unpReadBuf()) {
-		    return (false);
-		}
-	    }
-	    int Number = decodeNumber(BD);
-	    if (Number < 16) {
-		table[i] = (byte) ((Number + unpOldTable[i]) & 0xf);
-		i++;
-	    } else if (Number < 18) {
-		int N;
-		if (Number == 16) {
-		    N = (fgetbits() >>> 13) + 3;
-		    faddbits(3);
-		} else {
-		    N = (fgetbits() >>> 9) + 11;
-		    faddbits(7);
-		}
-		while (N-- > 0 && i < TableSize) {
-		    table[i] = table[i - 1];
-		    i++;
-		}
-	    } else {
-		int N;
-		if (Number == 18) {
-		    N = (fgetbits() >>> 13) + 3;
-		    faddbits(3);
-		} else {
-		    N = (fgetbits() >>> 9) + 11;
-		    faddbits(7);
-		}
-		while (N-- > 0 && i < TableSize) {
-		    table[i++] = 0;
-		}
-	    }
-	}
-	tablesRead = true;
-	if (inAddr > readTop) {
-	    return (false);
-	}
-	makeDecodeTables(table, 0, LD, Compress.NC);
-	makeDecodeTables(table, Compress.NC, DD, Compress.DC);
-	makeDecodeTables(table, Compress.NC + Compress.DC, LDD, Compress.LDC);
-	makeDecodeTables(table, Compress.NC + Compress.DC + Compress.LDC, RD,
-		Compress.RC);
+        int i = 0;
+        while (i < TableSize) {
+            if (this.inAddr > (this.readTop - 5)) {
+                if (!unpReadBuf()) {
+                    return (false);
+                }
+            }
+            final int Number = decodeNumber(this.BD);
+            if (Number < 16) {
+                table[i] = (byte) ((Number + this.unpOldTable[i]) & 0xf);
+                i++;
+            } else if (Number < 18) {
+                int N;
+                if (Number == 16) {
+                    N = (fgetbits() >>> 13) + 3;
+                    faddbits(3);
+                } else {
+                    N = (fgetbits() >>> 9) + 11;
+                    faddbits(7);
+                }
+                while ((N-- > 0) && (i < TableSize)) {
+                    table[i] = table[i - 1];
+                    i++;
+                }
+            } else {
+                int N;
+                if (Number == 18) {
+                    N = (fgetbits() >>> 13) + 3;
+                    faddbits(3);
+                } else {
+                    N = (fgetbits() >>> 9) + 11;
+                    faddbits(7);
+                }
+                while ((N-- > 0) && (i < TableSize)) {
+                    table[i++] = 0;
+                }
+            }
+        }
+        this.tablesRead = true;
+        if (this.inAddr > this.readTop) {
+            return (false);
+        }
+        makeDecodeTables(table, 0, this.LD, Compress.NC);
+        makeDecodeTables(table, Compress.NC, this.DD, Compress.DC);
+        makeDecodeTables(table, Compress.NC + Compress.DC, this.LDD, Compress.LDC);
+        makeDecodeTables(table, Compress.NC + Compress.DC + Compress.LDC, this.RD, Compress.RC);
 
-	// memcpy(unpOldTable,table,sizeof(unpOldTable));
-	for (int i = 0; i < unpOldTable.length; i++) {
-	    unpOldTable[i] = table[i];
-	}
-	return (true);
+        System.arraycopy(table, 0, this.unpOldTable, 0, this.unpOldTable.length);
+        return (true);
 
     }
 
     private boolean readVMCode() throws IOException, RarException {
-	int FirstByte = getbits() >> 8;
-	addbits(8);
-	int Length = (FirstByte & 7) + 1;
-	if (Length == 7) {
-	    Length = (getbits() >> 8) + 7;
-	    addbits(8);
-	} else if (Length == 8) {
-	    Length = getbits();
-	    addbits(16);
-	}
-	List<Byte> vmCode = new ArrayList<Byte>();
-	for (int I = 0; I < Length; I++) {
-	    if (inAddr >= readTop - 1 && !unpReadBuf() && I < Length - 1) {
-		return (false);
-	    }
-	    vmCode.add(Byte.valueOf((byte) (getbits() >> 8)));
-	    addbits(8);
-	}
-	return (addVMCode(FirstByte, vmCode, Length));
+        final int FirstByte = getbits() >> 8;
+        addbits(8);
+        int Length = (FirstByte & 7) + 1;
+        if (Length == 7) {
+            Length = (getbits() >> 8) + 7;
+            addbits(8);
+        } else if (Length == 8) {
+            Length = getbits();
+            addbits(16);
+        }
+        final List<Byte> vmCode = new ArrayList<>();
+        for (int I = 0; I < Length; I++) {
+            if ((this.inAddr >= (this.readTop - 1)) && !unpReadBuf() && (I < (Length - 1))) {
+                return false;
+            }
+            vmCode.add((byte) (getbits() >> 8));
+            addbits(8);
+        }
+        return (addVMCode(FirstByte, vmCode));
     }
 
     private boolean readVMCodePPM() throws IOException, RarException {
-	int FirstByte = ppm.decodeChar();
-	if ((int) FirstByte == -1) {
-	    return (false);
-	}
-	int Length = (FirstByte & 7) + 1;
-	if (Length == 7) {
-	    int B1 = ppm.decodeChar();
-	    if (B1 == -1) {
-		return (false);
-	    }
-	    Length = B1 + 7;
-	} else if (Length == 8) {
-	    int B1 = ppm.decodeChar();
-	    if (B1 == -1) {
-		return (false);
-	    }
-	    int B2 = ppm.decodeChar();
-	    if (B2 == -1) {
-		return (false);
-	    }
-	    Length = B1 * 256 + B2;
-	}
-	List<Byte> vmCode = new ArrayList<Byte>();
-	for (int I = 0; I < Length; I++) {
-	    int Ch = ppm.decodeChar();
-	    if (Ch == -1) {
-		return (false);
-	    }
-	    vmCode.add(Byte.valueOf((byte) Ch));// VMCode[I]=Ch;
-	}
-	return (addVMCode(FirstByte, vmCode, Length));
+        final int FirstByte = this.ppm.decodeChar();
+        if (FirstByte == -1) {
+            return (false);
+        }
+        int Length = (FirstByte & 7) + 1;
+        if (Length == 7) {
+            final int B1 = this.ppm.decodeChar();
+            if (B1 == -1) {
+                return (false);
+            }
+            Length = B1 + 7;
+        } else if (Length == 8) {
+            final int B1 = this.ppm.decodeChar();
+            if (B1 == -1) {
+                return (false);
+            }
+            final int B2 = this.ppm.decodeChar();
+            if (B2 == -1) {
+                return (false);
+            }
+            Length = B1 * 256 + B2;
+        }
+        final List<Byte> vmCode = new ArrayList<>();
+        for (int I = 0; I < Length; I++) {
+            final int Ch = this.ppm.decodeChar();
+            if (Ch == -1) {
+                return (false);
+            }
+            vmCode.add((byte) Ch);// VMCode[I]=Ch;
+        }
+        return (addVMCode(FirstByte, vmCode));
     }
 
-    private boolean addVMCode(int firstByte, List<Byte> vmCode, int length) {
-	BitInput Inp = new BitInput();
-	Inp.InitBitInput();
-	// memcpy(Inp.InBuf,Code,Min(BitInput::MAX_SIZE,CodeSize));
-	for (int i = 0; i < Math.min(BitInput.MAX_SIZE, vmCode.size()); i++) {
-	    Inp.getInBuf()[i] = vmCode.get(i);
-	}
-	rarVM.init();
+    private boolean addVMCode(final int firstByte, final List<Byte> vmCode) {
+        final BitInput Inp = new BitInput();
+        Inp.InitBitInput();
+        // memcpy(Inp.InBuf,Code,Min(BitInput::MAX_SIZE,CodeSize));
+        for (int i = 0; i < Math.min(BitInput.MAX_SIZE, vmCode.size()); i++) {
+            Inp.getInBuf()[i] = vmCode.get(i);
+        }
+        this.rarVM.init();
 
-	int FiltPos;
-	if ((firstByte & 0x80) != 0) {
-	    FiltPos = RarVM.ReadData(Inp);
-	    if (FiltPos == 0) {
-		initFilters();
-	    } else {
-		FiltPos--;
-	    }
-	} else
-	    FiltPos = lastFilter; // use the same filter as last time
+        int FiltPos;
+        if ((firstByte & 0x80) == 0) {
+            FiltPos = this.lastFilter; // use the same filter as last time
+        } else {
+            FiltPos = RarVM.ReadData(Inp);
+            if (FiltPos == 0) {
+                initFilters();
+            } else {
+                FiltPos--;
+            }
+        }
 
-	if (FiltPos > filters.size() || FiltPos > oldFilterLengths.size()) {
-	    return (false);
-	}
-	lastFilter = FiltPos;
-	boolean NewFilter = (FiltPos == filters.size());
+        if ((FiltPos > this.filters.size()) || (FiltPos > this.oldFilterLengths.size())) {
+            return (false);
+        }
+        this.lastFilter = FiltPos;
+        final boolean NewFilter = (FiltPos == this.filters.size());
 
-	UnpackFilter StackFilter = new UnpackFilter(); // new filter for
-	// PrgStack
+        final UnpackFilter StackFilter = new UnpackFilter(); // new filter for
+        // PrgStack
 
-	UnpackFilter Filter;
-	if (NewFilter) // new filter code, never used before since VM reset
-	{
-	    // too many different filters, corrupt archive
-	    if (FiltPos > 1024) {
-		return (false);
-	    }
+        final UnpackFilter Filter;
+        if (NewFilter) // new filter code, never used before since VM reset
+        {
+            if (FiltPos > 1024) {
+                return (false);
+            }
 
-	    // Filters[Filters.Size()-1]=Filter=new UnpackFilter;
-	    Filter = new UnpackFilter();
-	    filters.add(Filter);
-	    StackFilter.setParentFilter(filters.size() - 1);
-	    oldFilterLengths.add(0);
-	    Filter.setExecCount(0);
-	} else // filter was used in the past
-	{
-	    Filter = filters.get(FiltPos);
-	    StackFilter.setParentFilter(FiltPos);
-	    Filter.setExecCount(Filter.getExecCount() + 1);// ->ExecCount++;
-	}
+            Filter = new UnpackFilter();
+            this.filters.add(Filter);
+            StackFilter.setParentFilter(this.filters.size() - 1);
+            this.oldFilterLengths.add(0);
+            Filter.setExecCount(0);
+        } else // filter was used in the past
+        {
+            Filter = this.filters.get(FiltPos);
+            StackFilter.setParentFilter(FiltPos);
+            Filter.setExecCount(Filter.getExecCount() + 1);// ->ExecCount++;
+        }
 
-	prgStack.add(StackFilter);
-	StackFilter.setExecCount(Filter.getExecCount());// ->ExecCount;
+        this.prgStack.add(StackFilter);
+        StackFilter.setExecCount(Filter.getExecCount());// ->ExecCount;
 
-	int BlockStart = RarVM.ReadData(Inp);
-	if ((firstByte & 0x40) != 0) {
-	    BlockStart += 258;
-	}
-	StackFilter.setBlockStart((BlockStart + unpPtr) & Compress.MAXWINMASK);
-	if ((firstByte & 0x20) != 0) {
-	    StackFilter.setBlockLength(RarVM.ReadData(Inp));
-	} else {
-	    StackFilter
-		    .setBlockLength(FiltPos < oldFilterLengths.size() ? oldFilterLengths
-			    .get(FiltPos)
-			    : 0);
-	}
-	StackFilter.setNextWindow((wrPtr != unpPtr)
-		&& ((wrPtr - unpPtr) & Compress.MAXWINMASK) <= BlockStart);
+        int BlockStart = RarVM.ReadData(Inp);
+        if ((firstByte & 0x40) != 0) {
+            BlockStart += 258;
+        }
+        StackFilter.setBlockStart((BlockStart + this.unpPtr) & Compress.MAXWINMASK);
+        if ((firstByte & 0x20) == 0) {
+            StackFilter.setBlockLength((FiltPos < this.oldFilterLengths.size()) ? this.oldFilterLengths.get(FiltPos) :
+                                       0);
+        } else {
+            StackFilter.setBlockLength(RarVM.ReadData(Inp));
+        }
+        StackFilter.setNextWindow(
+                (this.wrPtr != this.unpPtr) && (((this.wrPtr - this.unpPtr) & Compress.MAXWINMASK) <= BlockStart));
 
-	// DebugLog("\nNextWindow: UnpPtr=%08x WrPtr=%08x
-	// BlockStart=%08x",UnpPtr,WrPtr,BlockStart);
+        this.oldFilterLengths.set(FiltPos, StackFilter.getBlockLength());
 
-	oldFilterLengths.set(FiltPos, StackFilter.getBlockLength());
+        Arrays.fill(StackFilter.getPrg()
+                               .getInitR(), 0);
+        StackFilter.getPrg()
+                   .getInitR()[3] = RarVM.VM_GLOBALMEMADDR;// StackFilter->Prg.InitR[3]=VM_GLOBALMEMADDR;
+        StackFilter.getPrg()
+                   .getInitR()[4] = StackFilter.getBlockLength();// StackFilter->Prg.InitR[4]=StackFilter->BlockLength;
+        StackFilter.getPrg()
+                   .getInitR()[5] = StackFilter.getExecCount();// StackFilter->Prg.InitR[5]=StackFilter->ExecCount;
 
-	// memset(StackFilter->Prg.InitR,0,sizeof(StackFilter->Prg.InitR));
-	Arrays.fill(StackFilter.getPrg().getInitR(), 0);
-	StackFilter.getPrg().getInitR()[3] = RarVM.VM_GLOBALMEMADDR;// StackFilter->Prg.InitR[3]=VM_GLOBALMEMADDR;
-	StackFilter.getPrg().getInitR()[4] = StackFilter.getBlockLength();// StackFilter->Prg.InitR[4]=StackFilter->BlockLength;
-	StackFilter.getPrg().getInitR()[5] = StackFilter.getExecCount();// StackFilter->Prg.InitR[5]=StackFilter->ExecCount;
+        if ((firstByte & 0x10) != 0) // set registers to optional parameters
+        // if any
+        {
+            final int InitMask = Inp.fgetbits() >>> 9;
+            Inp.faddbits(7);
+            for (int I = 0; I < 7; I++) {
+                if ((InitMask & (1 << I)) != 0) {
+                    // StackFilter->Prg.InitR[I]=RarVM::ReadData(Inp);
+                    StackFilter.getPrg()
+                               .getInitR()[I] = RarVM.ReadData(Inp);
+                }
+            }
+        }
 
-	if ((firstByte & 0x10) != 0) // set registers to optional parameters
-	// if any
-	{
-	    int InitMask = Inp.fgetbits() >>> 9;
-	    Inp.faddbits(7);
-	    for (int I = 0; I < 7; I++) {
-		if ((InitMask & (1 << I)) != 0) {
-		    // StackFilter->Prg.InitR[I]=RarVM::ReadData(Inp);
-		    StackFilter.getPrg().getInitR()[I] = RarVM.ReadData(Inp);
-		}
-	    }
-	}
+        if (NewFilter) {
+            final int VMCodeSize = RarVM.ReadData(Inp);
+            if ((VMCodeSize >= 0x10000) || (VMCodeSize == 0)) {
+                return (false);
+            }
+            final byte[] VMCode = new byte[VMCodeSize];
+            for (int I = 0; I < VMCodeSize; I++) {
+                if (Inp.Overflow(3)) {
+                    return (false);
+                }
+                VMCode[I] = (byte) (Inp.fgetbits() >> 8);
+                Inp.faddbits(8);
+            }
+            // VM.Prepare(&VMCode[0],VMCodeSize,&Filter->Prg);
+            this.rarVM.prepare(VMCode, VMCodeSize, Filter.getPrg());
+        }
+        StackFilter.getPrg()
+                   .setAltCmd(Filter.getPrg()
+                                    .getCmd());// StackFilter->Prg.AltCmd=&Filter->Prg.Cmd[0];
+        StackFilter.getPrg()
+                   .setCmdCount(Filter.getPrg()
+                                      .getCmdCount());// StackFilter->Prg.CmdCount=Filter->Prg.CmdCount;
 
-	if (NewFilter) {
-	    int VMCodeSize = RarVM.ReadData(Inp);
-	    if (VMCodeSize >= 0x10000 || VMCodeSize == 0) {
-		return (false);
-	    }
-	    byte[] VMCode = new byte[VMCodeSize];
-	    for (int I = 0; I < VMCodeSize; I++) {
-		if (Inp.Overflow(3)) {
-		    return (false);
-		}
-		VMCode[I] = (byte) (Inp.fgetbits() >> 8);
-		Inp.faddbits(8);
-	    }
-	    // VM.Prepare(&VMCode[0],VMCodeSize,&Filter->Prg);
-	    rarVM.prepare(VMCode, VMCodeSize, Filter.getPrg());
-	}
-	StackFilter.getPrg().setAltCmd(Filter.getPrg().getCmd());// StackFilter->Prg.AltCmd=&Filter->Prg.Cmd[0];
-	StackFilter.getPrg().setCmdCount(Filter.getPrg().getCmdCount());// StackFilter->Prg.CmdCount=Filter->Prg.CmdCount;
+        final int StaticDataSize = Filter.getPrg()
+                                         .getStaticData()
+                                         .size();
+        if ((StaticDataSize > 0) && (StaticDataSize < RarVM.VM_GLOBALMEMSIZE)) {
+            StackFilter.getPrg()
+                       .setStaticData(Filter.getPrg()
+                                            .getStaticData());
+        }
 
-	int StaticDataSize = Filter.getPrg().getStaticData().size();
-	if (StaticDataSize > 0 && StaticDataSize < RarVM.VM_GLOBALMEMSIZE) {
-	    // read statically defined data contained in DB commands
-	    // StackFilter->Prg.StaticData.Add(StaticDataSize);
-	    StackFilter.getPrg().setStaticData(Filter.getPrg().getStaticData());
-	    // memcpy(&StackFilter->Prg.StaticData[0],&Filter->Prg.StaticData[0],StaticDataSize);
-	}
+        if (StackFilter.getPrg()
+                       .getGlobalData()
+                       .size() < RarVM.VM_FIXEDGLOBALSIZE) {
+            StackFilter.getPrg()
+                       .getGlobalData()
+                       .clear();
+            StackFilter.getPrg()
+                       .getGlobalData()
+                       .setSize(RarVM.VM_FIXEDGLOBALSIZE);
+        }
 
-	if (StackFilter.getPrg().getGlobalData().size() < RarVM.VM_FIXEDGLOBALSIZE) {
-	    // StackFilter->Prg.GlobalData.Reset();
-	    // StackFilter->Prg.GlobalData.Add(VM_FIXEDGLOBALSIZE);
-	    StackFilter.getPrg().getGlobalData().clear();
-	    StackFilter.getPrg().getGlobalData().setSize(
-		    RarVM.VM_FIXEDGLOBALSIZE);
-	}
+        // byte *GlobalData=&StackFilter->Prg.GlobalData[0];
+        Vector<Byte> globalData = StackFilter.getPrg()
+                                             .getGlobalData();
+        for (int I = 0; I < 7; I++) {
+            this.rarVM.setLowEndianValue(globalData, I * 4, StackFilter.getPrg()
+                                                                       .getInitR()[I]);
+        }
 
-	// byte *GlobalData=&StackFilter->Prg.GlobalData[0];
-	Vector<Byte> globalData = StackFilter.getPrg().getGlobalData();
-	for (int I = 0; I < 7; I++) {
-	    rarVM.setLowEndianValue(globalData, I * 4, StackFilter.getPrg()
-		    .getInitR()[I]);
-	}
+        this.rarVM.setLowEndianValue(globalData, 0x1c, StackFilter.getBlockLength());
+        this.rarVM.setLowEndianValue(globalData, 0x20, 0);
+        this.rarVM.setLowEndianValue(globalData, 0x24, 0);
+        this.rarVM.setLowEndianValue(globalData, 0x28, 0);
 
-	// VM.SetLowEndianValue((uint
-	// *)&GlobalData[0x1c],StackFilter->BlockLength);
-	rarVM.setLowEndianValue(globalData, 0x1c, StackFilter.getBlockLength());
-	// VM.SetLowEndianValue((uint *)&GlobalData[0x20],0);
-	rarVM.setLowEndianValue(globalData, 0x20, 0);
-	rarVM.setLowEndianValue(globalData, 0x24, 0);
-	rarVM.setLowEndianValue(globalData, 0x28, 0);
-
-	// VM.SetLowEndianValue((uint
-	// *)&GlobalData[0x2c],StackFilter->ExecCount);
-	rarVM.setLowEndianValue(globalData, 0x2c, StackFilter.getExecCount());
-	// memset(&GlobalData[0x30],0,16);
-	for (int i = 0; i < 16; i++) {
-	    globalData.set(0x30 + i, Byte.valueOf((byte) (0)));
-	}
-	if ((firstByte & 8) != 0) // put data block passed as parameter if any
-	{
-	    if (Inp.Overflow(3)) {
-		return (false);
-	    }
-	    int DataSize = RarVM.ReadData(Inp);
-	    if (DataSize > RarVM.VM_GLOBALMEMSIZE - RarVM.VM_FIXEDGLOBALSIZE) {
-		return (false);
-	    }
-	    int CurSize = StackFilter.getPrg().getGlobalData().size();
-	    if (CurSize < DataSize + RarVM.VM_FIXEDGLOBALSIZE) {
-		// StackFilter->Prg.GlobalData.Add(DataSize+VM_FIXEDGLOBALSIZE-CurSize);
-		StackFilter.getPrg().getGlobalData().setSize(
-			DataSize + RarVM.VM_FIXEDGLOBALSIZE - CurSize);
-	    }
-	    int offset = RarVM.VM_FIXEDGLOBALSIZE;
-	    globalData = StackFilter.getPrg().getGlobalData();
-	    for (int I = 0; I < DataSize; I++) {
-		if (Inp.Overflow(3)) {
-		    return (false);
-		}
-		globalData.set(offset + I, Byte
-			.valueOf((byte) (Inp.fgetbits() >>> 8)));
-		Inp.faddbits(8);
-	    }
-	}
-	return (true);
+        this.rarVM.setLowEndianValue(globalData, 0x2c, StackFilter.getExecCount());
+        for (int i = 0; i < 16; i++) {
+            globalData.set(0x30 + i, (byte) (0));
+        }
+        if ((firstByte & 8) != 0) // put data block passed as parameter if any
+        {
+            if (Inp.Overflow(3)) {
+                return (false);
+            }
+            final int DataSize = RarVM.ReadData(Inp);
+            if (DataSize > (RarVM.VM_GLOBALMEMSIZE - RarVM.VM_FIXEDGLOBALSIZE)) {
+                return (false);
+            }
+            final int CurSize = StackFilter.getPrg()
+                                           .getGlobalData()
+                                           .size();
+            if (CurSize < (DataSize + RarVM.VM_FIXEDGLOBALSIZE)) {
+                StackFilter.getPrg()
+                           .getGlobalData()
+                           .setSize((DataSize + RarVM.VM_FIXEDGLOBALSIZE) - CurSize);
+            }
+            final int offset = RarVM.VM_FIXEDGLOBALSIZE;
+            globalData = StackFilter.getPrg()
+                                    .getGlobalData();
+            for (int I = 0; I < DataSize; I++) {
+                if (Inp.Overflow(3)) {
+                    return (false);
+                }
+                globalData.set(offset + I, (byte) (Inp.fgetbits() >>> 8));
+                Inp.faddbits(8);
+            }
+        }
+        return (true);
     }
 
-    private void ExecuteCode(VMPreparedProgram Prg) {
-	if (Prg.getGlobalData().size() > 0) {
-	    // Prg->InitR[6]=int64to32(WrittenFileSize);
-	    Prg.getInitR()[6] = (int) (writtenFileSize);
-	    // rarVM.SetLowEndianValue((uint
-	    // *)&Prg->GlobalData[0x24],int64to32(WrittenFileSize));
-	    rarVM.setLowEndianValue(Prg.getGlobalData(), 0x24,
-		    (int) writtenFileSize);
-	    // rarVM.SetLowEndianValue((uint
-	    // *)&Prg->GlobalData[0x28],int64to32(WrittenFileSize>>32));
-	    rarVM.setLowEndianValue(Prg.getGlobalData(), 0x28,
-		    (int) (writtenFileSize >>> 32));
-	    rarVM.execute(Prg);
-	}
+    private void ExecuteCode(final VMPreparedProgram Prg) {
+        if (!Prg.getGlobalData()
+                .isEmpty()) {
+            Prg.getInitR()[6] = (int) (this.writtenFileSize);
+            this.rarVM.setLowEndianValue(Prg.getGlobalData(), 0x24, (int) this.writtenFileSize);
+            this.rarVM.setLowEndianValue(Prg.getGlobalData(), 0x28, (int) (this.writtenFileSize >>> 32));
+            this.rarVM.execute(Prg);
+        }
     }
-
-    // Duplicate method
-    // private boolean ReadEndOfBlock() throws IOException, RarException
-    // {
-    // int BitField = getbits();
-    // boolean NewTable, NewFile = false;
-    // if ((BitField & 0x8000) != 0) {
-    // NewTable = true;
-    // addbits(1);
-    // } else {
-    // NewFile = true;
-    // NewTable = (BitField & 0x4000) != 0;
-    // addbits(2);
-    // }
-    // tablesRead = !NewTable;
-    // return !(NewFile || NewTable && !readTables());
-    // }
 
     public boolean isFileExtracted() {
-	return fileExtracted;
+        return this.fileExtracted;
     }
 
-    public void setDestSize(long destSize) {
-	this.destUnpSize = destSize;
-	this.fileExtracted = false;
+    public void setDestSize(final long destSize) {
+        this.destUnpSize = destSize;
+        this.fileExtracted = false;
     }
 
-    public void setSuspended(boolean suspended) {
-	this.suspended = suspended;
+    public void setSuspended(final boolean suspended) {
+        this.suspended = suspended;
     }
 
     public int getChar() throws IOException, RarException {
-	if (inAddr > BitInput.MAX_SIZE - 30) {
-	    unpReadBuf();
-	}
-	return (inBuf[inAddr++] & 0xff);
+        if (this.inAddr > (BitInput.MAX_SIZE - 30)) {
+            unpReadBuf();
+        }
+        return (this.inBuf[this.inAddr++] & 0xff);
     }
 
     public int getPpmEscChar() {
-	return ppmEscChar;
+        return this.ppmEscChar;
     }
 
-    public void setPpmEscChar(int ppmEscChar) {
-	this.ppmEscChar = ppmEscChar;
+    public void setPpmEscChar(final int ppmEscChar) {
+        this.ppmEscChar = ppmEscChar;
     }
 
     public void cleanUp() {
-	if (ppm != null) {
-	    SubAllocator allocator = ppm.getSubAlloc();
-	    if (allocator != null) {
-		allocator.stopSubAllocator();
-	    }
-	}
+        if (this.ppm != null) {
+            final SubAllocator allocator = this.ppm.getSubAlloc();
+            if (allocator != null) {
+                allocator.stopSubAllocator();
+            }
+        }
     }
 }

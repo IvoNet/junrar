@@ -1,87 +1,60 @@
 /*
  * Copyright (c) 2007 innoSysTec (R) GmbH, Germany. All rights reserved.
  * Original author: Edmund Wagner
- * Creation date: 04.06.2007
  *
- * Source: $HeadURL$
- * Last changed: $LastChangedDate$
- * 
- * the unrar licence applies to all junrar source and binary distributions 
+ * Copyright (c) 2014 IvoNet.nl. All rights reserved
+ * Refactoring and upgrading of original code: Ivo Woltring
+ * Author of all nl.ivonet packaged code: Ivo Woltring
+ *
+ * The original unrar licence applies to all junrar source and binary distributions
  * you are not allowed to use this source to re-create the RAR compression algorithm
- * 
- * Here some html entities which can be used for escaping javadoc tags:
- * "&":  "&#038;" or "&amp;"
- * "<":  "&#060;" or "&lt;"
- * ">":  "&#062;" or "&gt;"
- * "@":  "&#064;" 
  */
+
 package com.github.junrar.unpack.ppm;
 
 import com.github.junrar.io.Raw;
 
-/**
- * DOCUMENT ME
- * 
- * @author $LastChangedBy$
- * @version $LastChangedRevision$
- */
-public class FreqData extends Pointer{
+public class FreqData extends Pointer {
 
-	public static final int size = 6; 
+    public static final int size = 6;
 
-//    struct FreqData
-//    {
-//        ushort SummFreq;
-//        STATE _PACK_ATTR * Stats;
-//    };
 
-	public FreqData(byte[]mem){
-		super(mem);
-	}
+    public FreqData(final byte[] mem) {
+        super(mem);
+    }
 
-    public FreqData init(byte[] mem) {
+    public void init(final byte[] mem) {
         this.mem = mem;
-        pos = 0;
-        return this;
+        this.pos = 0;
     }
 
     public int getSummFreq() {
-		return Raw.readShortLittleEndian(mem,  pos)&0xffff;
-	}
+        return Raw.readShortLittleEndian(this.mem, this.pos) & 0xffff;
+    }
 
-	public void setSummFreq(int summFreq) {
-        Raw.writeShortLittleEndian(mem, pos, (short)summFreq);
-	}
+    public void setSummFreq(final int summFreq) {
+        Raw.writeShortLittleEndian(this.mem, this.pos, (short) summFreq);
+    }
 
-    public void incSummFreq(int dSummFreq) {
-        Raw.incShortLittleEndian(mem, pos, dSummFreq);
+    public void incSummFreq(final int dSummFreq) {
+        Raw.incShortLittleEndian(this.mem, this.pos, dSummFreq);
     }
 
     public int getStats() {
-        return Raw.readIntLittleEndian(mem,  pos+2);
-	}
+        return Raw.readIntLittleEndian(this.mem, this.pos + 2);
+    }
 
-	public void setStats(State state) {
-		setStats(state.getAddress());
-	}
+    public void setStats(final int state) {
+        Raw.writeIntLittleEndian(this.mem, this.pos + 2, state);
+    }
 
-    public void setStats(int state) {
-        Raw.writeIntLittleEndian(mem, pos+2, state);
-	}
+    public void setStats(final State state) {
+        setStats(state.getAddress());
+    }
 
     public String toString() {
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("FreqData[");
-        buffer.append("\n  pos=");
-        buffer.append(pos);
-        buffer.append("\n  size=");
-        buffer.append(size);
-        buffer.append("\n  summFreq=");
-        buffer.append(getSummFreq());
-        buffer.append("\n  stats=");
-        buffer.append(getStats());
-        buffer.append("\n]");
-        return buffer.toString();
+        return "FreqData[" + "\n  pos=" + this.pos + "\n  size=" + size + "\n  summFreq=" + getSummFreq() + "\n  stats="
+               + getStats() + "\n]";
     }
-	
+
 }

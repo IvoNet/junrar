@@ -1,127 +1,108 @@
 /*
  * Copyright (c) 2007 innoSysTec (R) GmbH, Germany. All rights reserved.
  * Original author: Edmund Wagner
- * Creation date: 31.05.2007
  *
- * Source: $HeadURL$
- * Last changed: $LastChangedDate$
- * 
- * the unrar licence applies to all junrar source and binary distributions 
+ * Copyright (c) 2014 IvoNet.nl. All rights reserved
+ * Refactoring and upgrading of original code: Ivo Woltring
+ * Author of all nl.ivonet packaged code: Ivo Woltring
+ *
+ * The original unrar licence applies to all junrar source and binary distributions
  * you are not allowed to use this source to re-create the RAR compression algorithm
- * 
- * Here some html entities which can be used for escaping javadoc tags:
- * "&":  "&#038;" or "&amp;"
- * "<":  "&#060;" or "&lt;"
- * ">":  "&#062;" or "&gt;"
- * "@":  "&#064;" 
  */
+
 package com.github.junrar.unpack.vm;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
-/**
- * DOCUMENT ME
- * 
- * @author $LastChangedBy$
- * @version $LastChangedRevision$
- */
-public class VMPreparedProgram 
-{
-	private List<VMPreparedCommand> Cmd  = new ArrayList<VMPreparedCommand>();
-	private List<VMPreparedCommand> AltCmd  =new ArrayList<VMPreparedCommand>();
-	private int CmdCount;
+
+public class VMPreparedProgram {
+    private List<VMPreparedCommand> Cmd = new ArrayList<>();
+    private List<VMPreparedCommand> AltCmd = new ArrayList<>();
+    private int CmdCount;
 
 
-	
-	private Vector<Byte> GlobalData = new Vector<Byte>();
-	private Vector<Byte> StaticData = new Vector<Byte>(); // static data contained in DB operators
-	private int InitR[] = new int[7];
+    private Vector<Byte> GlobalData = new Vector<>();
+    private Vector<Byte> StaticData = new Vector<>(); // static data contained in DB operators
+    private int[] InitR = new int[7];
 
-	private int FilteredDataOffset;
-	private int FilteredDataSize;
-	
-	public VMPreparedProgram() 
-	{
-		AltCmd=null;
-	}
+    private int FilteredDataOffset;
+    private int FilteredDataSize;
 
-	
-
-	public List<VMPreparedCommand> getAltCmd() {
-		return AltCmd;
-	}
+    public VMPreparedProgram() {
+        this.AltCmd = null;
+    }
 
 
-
-	public void setAltCmd(List<VMPreparedCommand> altCmd) {
-		AltCmd = altCmd;
-	}
-
+    public List<VMPreparedCommand> getAltCmd() {
+        return this.AltCmd;
+    }
 
 
-	public List<VMPreparedCommand> getCmd() {
-		return Cmd;
-	}
-
-	public void setCmd(List<VMPreparedCommand> cmd) {
-		Cmd = cmd;
-	}
-
-	public int getCmdCount() {
-		return CmdCount;
-	}
-
-	public void setCmdCount(int cmdCount) {
-		CmdCount = cmdCount;
-	}
-
-	
-
-	public int getFilteredDataOffset() {
-		return FilteredDataOffset;
-	}
+    public void setAltCmd(final List<VMPreparedCommand> altCmd) {
+        this.AltCmd = altCmd;
+    }
 
 
+    public List<VMPreparedCommand> getCmd() {
+        return this.Cmd;
+    }
 
-	public void setFilteredDataOffset(int filteredDataOffset) {
-		FilteredDataOffset = filteredDataOffset;
-	}
+    public void setCmd(final List<VMPreparedCommand> cmd) {
+        this.Cmd = cmd;
+    }
+
+    public int getCmdCount() {
+        return this.CmdCount;
+    }
+
+    public void setCmdCount(final int cmdCount) {
+        this.CmdCount = cmdCount;
+    }
 
 
+    public int getFilteredDataOffset() {
+        return this.FilteredDataOffset;
+    }
 
-	public int getFilteredDataSize() {
-		return FilteredDataSize;
-	}
 
-	public void setFilteredDataSize(int filteredDataSize) {
-		FilteredDataSize = filteredDataSize;
-	}
+    public void setFilteredDataOffset(final int filteredDataOffset) {
+        this.FilteredDataOffset = filteredDataOffset;
+    }
 
-	public Vector<Byte> getGlobalData() {
-		return GlobalData;
-	}
 
-	public void setGlobalData(Vector<Byte> globalData) {
-		GlobalData = globalData;
-	}
+    public int getFilteredDataSize() {
+        return this.FilteredDataSize;
+    }
 
-	public int[] getInitR() {
-		return InitR;
-	}
+    public void setFilteredDataSize(final int filteredDataSize) {
+        this.FilteredDataSize = filteredDataSize;
+    }
 
-	public void setInitR(int[] initR) {
-		InitR = initR;
-	}
+    public Vector<Byte> getGlobalData() {
+        return this.GlobalData;
+    }
 
-	public Vector<Byte> getStaticData() {
-		return StaticData;
-	}
+    public void setGlobalData(final Vector<Byte> globalData) {
+        this.GlobalData = globalData;
+    }
 
-	public void setStaticData(Vector<Byte> staticData) {
-		StaticData = staticData;
-	}
-	
-	
+    public int[] getInitR() {
+        return this.InitR;
+    }
+
+    public void setInitR(final int[] initR) {
+        this.InitR = initR;
+    }
+
+    public Vector<Byte> getStaticData() {
+        return this.StaticData;
+    }
+
+    public void setStaticData(final Vector<Byte> staticData) {
+        this.StaticData = staticData;
+    }
+
+
 }
