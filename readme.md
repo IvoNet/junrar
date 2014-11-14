@@ -41,7 +41,7 @@ See also the testcase(s) for more code samples
 
 ### Maven
 
-At this time this verion of junrar is not found in maven central (yet) as I'm if I may do this under a new groupId?
+At this time this verion of junrar is not found in maven central (yet) as I'm not sure if I may do this under a new groupId?
 
 So this is the current way:
 * clone this repository
