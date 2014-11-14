@@ -13,6 +13,7 @@
 package nl.ivonet.helper.boundary;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -41,6 +42,10 @@ public class Memory {
 
     public Collection<Resource> values() {
         return this.resources.values();
+    }
+
+    public Map<String, Resource> getResources() {
+        return Collections.unmodifiableMap(this.resources);
     }
 
 }
