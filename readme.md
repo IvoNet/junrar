@@ -31,8 +31,15 @@ java -jar junrar-jar-with-dependencies <rar> <output dir>
 
 ```java
 RarExtractor rar = new RarExtractor();
-rar.extractArchive('path/to/rarfile.rar', 'path/to/output/folder')
+rar.extractArchive("path/to/rarfile.rar", "path/to/output/folder");
 
+```
+
+or in memory:
+
+```java
+RarToMemory rar = new RarToMemory();
+final Memory memory = rar.extractArchive("path/to/a/file.rar"));
 ```
 
 See also the testcase(s) for more code samples
