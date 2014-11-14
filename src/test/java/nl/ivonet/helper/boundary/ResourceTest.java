@@ -12,8 +12,20 @@
 
 package nl.ivonet.helper.boundary;
 
-/**
- * @author Ivo Woltring
- */
-public class Resources {
+import org.junit.Test;
+
+import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertThat;
+
+public class ResourceTest {
+
+
+    @Test
+    public void testFullPath() throws Exception {
+        final Resource resource = new Resource("foo.txt");
+
+        assertThat(resource.fullPath(), is("foo.txt"));
+
+
+    }
 }

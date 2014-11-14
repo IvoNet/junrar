@@ -16,6 +16,7 @@ import com.github.junrar.io.Raw;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import java.io.File;
 import java.util.Calendar;
 import java.util.Date;
 
@@ -358,5 +359,14 @@ public class FileHeader extends BlockHeader {
      */
     public boolean isDirectory() {
         return (this.flags & LHD_WINDOWMASK) == LHD_DIRECTORY;
+    }
+
+    /**
+     * The name taking into account unicode and file status.
+     *
+     * @return a unified string representation of the filename.
+     */
+    public String getUnifiedFilename() {
+        return ((isFileHeader() && isUnicode()) ? getFileNameW() : getFileNameString()).replace("\\", File.separator);
     }
 }
