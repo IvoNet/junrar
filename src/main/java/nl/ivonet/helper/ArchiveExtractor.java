@@ -27,8 +27,8 @@ import java.nio.file.Files;
 /**
  * @author Ivo Woltring
  */
-public class RarExtractor {
-    private static final Log logger = LogFactory.getLog(RarExtractor.class.getName());
+public class ArchiveExtractor {
+    private static final Log logger = LogFactory.getLog(ArchiveExtractor.class.getName());
 
     public void extractArchive(final String archive, final String destination) {
         if ((archive == null) || (destination == null)) {
@@ -98,11 +98,11 @@ public class RarExtractor {
 
 
     public static void main(final String[] args) {
-        final RarExtractor rarExtractor = new RarExtractor();
+        final ArchiveExtractor archiveExtractor = new ArchiveExtractor();
         if (args.length == 2) {
-            rarExtractor.extractArchive(args[0], args[1]);
+            archiveExtractor.extractArchive(args[0], args[1]);
         } else {
-            System.out.println("usage: java -jar extractArchive.jar <thearchive> <the destination directory>");
+            System.out.println("usage: java -jar extract.jar <thearchive> <the destination directory>");
         }
     }
 

@@ -28,11 +28,11 @@ import java.util.List;
 /**
  * @author Ivo Woltring
  */
-public class RarToMemory {
+public class ArchiveToMemory {
 
 
-    public Memory extractArchive(final String rarFilename) {
-        return this.extractArchive(new File(rarFilename));
+    public Memory extract(final String rarFilename) {
+        return this.extract(new File(rarFilename));
     }
 
     /**
@@ -41,7 +41,7 @@ public class RarToMemory {
      * @param file the comic to read
      * @return {@link Memory}
      */
-    public Memory extractArchive(final File file) {
+    public Memory extract(final File file) {
         final Memory memory = new Memory();
         try {
             final Archive archive = new Archive(file);

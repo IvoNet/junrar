@@ -25,19 +25,19 @@ import java.nio.file.Paths;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class RarToMemoryTest {
+public class ArchiveToMemoryTest {
 
-    private RarToMemory rarToMemory;
+    private ArchiveToMemory archiveToMemory;
 
     @Before
     public void setUp() throws Exception {
-        this.rarToMemory = new RarToMemory();
+        this.archiveToMemory = new ArchiveToMemory();
     }
 
     @Test
     public void testExtractArchive() throws Exception {
 
-        final Memory memory = this.rarToMemory.extractArchive(ResourceProvider.getFileResource("files.rar"));
+        final Memory memory = this.archiveToMemory.extract(ResourceProvider.getFileResource("files.rar"));
 
         assertFalse(memory.keys()
                           .isEmpty());
@@ -51,7 +51,7 @@ public class RarToMemoryTest {
         final Path comic = Paths.get(ResourceProvider.getTargetLocation(), "src/test/resources/comicA.cbr");
         assertTrue(Files.exists(comic));
 
-        final Memory comicMem = this.rarToMemory.extractArchive(comic.toFile());
+        final Memory comicMem = this.archiveToMemory.extract(comic.toFile());
 
         assertFalse(comicMem.keys()
                             .isEmpty());

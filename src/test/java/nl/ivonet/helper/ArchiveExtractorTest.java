@@ -28,13 +28,13 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-public class RarExtractorTest {
+public class ArchiveExtractorTest {
 
-    private RarExtractor rarExtractor;
+    private ArchiveExtractor archiveExtractor;
 
     @Before
     public void setUp() throws Exception {
-        this.rarExtractor = new RarExtractor();
+        this.archiveExtractor = new ArchiveExtractor();
 
     }
 
@@ -58,7 +58,7 @@ public class RarExtractorTest {
 
     @Test
     public void testExtractArchive() throws Exception {
-        this.rarExtractor.extractArchive(ResourceProvider.getFileResource("comicA.cbr"),
+        this.archiveExtractor.extractArchive(ResourceProvider.getFileResource("comicA.cbr"),
                                          ResourceProvider.getTargetLocation());
 
         assertTrue(Files.exists(Paths.get(ResourceProvider.getTargetLocation(), "img001.jpg")));
