@@ -42,7 +42,7 @@ public class ArchiveToMemory {
      * @return {@link Memory}
      */
     public Memory extract(final File file) {
-        final Memory memory = new Memory();
+        final Memory memory = new Memory(file.getPath());
         try {
             final Archive archive = new Archive(file);
             final List<FileHeader> fileHeaders = archive.getFileHeaders();

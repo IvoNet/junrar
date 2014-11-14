@@ -38,6 +38,7 @@ public class ArchiveToMemoryTest {
     public void testExtractArchive() throws Exception {
 
         final Memory memory = this.archiveToMemory.extract(ResourceProvider.getFileResource("files.rar"));
+//        System.out.println("memory.getFileName() = " + memory.getFileName());
 
         assertFalse(memory.keys()
                           .isEmpty());
@@ -52,6 +53,7 @@ public class ArchiveToMemoryTest {
         assertTrue(Files.exists(comic));
 
         final Memory comicMem = this.archiveToMemory.extract(comic.toFile());
+//        System.out.println("comicMem.getFileName() = " + comicMem.getFileName());
 
         assertFalse(comicMem.keys()
                             .isEmpty());

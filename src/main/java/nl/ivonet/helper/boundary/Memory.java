@@ -23,8 +23,10 @@ import java.util.TreeMap;
  */
 public class Memory {
     private final Map<String, Resource> resources;
+    private final String filename;
 
-    public Memory() {
+    public Memory(final String filename) {
+        this.filename = filename;
         this.resources = new TreeMap<>();
     }
 
@@ -48,4 +50,7 @@ public class Memory {
         return Collections.unmodifiableMap(this.resources);
     }
 
+    public String getFileName() {
+        return this.filename;
+    }
 }
