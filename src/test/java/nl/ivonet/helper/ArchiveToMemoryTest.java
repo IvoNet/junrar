@@ -21,8 +21,10 @@ import org.junit.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class ArchiveToMemoryTest {
@@ -57,6 +59,18 @@ public class ArchiveToMemoryTest {
 
         assertFalse(comicMem.keys()
                             .isEmpty());
+
+
+    }
+
+    @Test
+    public void testFiles() throws Exception {
+        final String filename = ResourceProvider.getFileResource("files.rar");
+        final List<String> files = this.archiveToMemory.files(filename);
+        for (final String file : files) {
+            System.out.println("file = " + file);
+            assertNotNull(this.archiveToMemory.extract(filename, file));
+        }
 
 
     }

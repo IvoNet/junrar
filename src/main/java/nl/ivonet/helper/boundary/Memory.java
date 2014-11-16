@@ -19,6 +19,10 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
+ * This is the complete Memory representation of a Rar file.
+ *
+ * Note: this can lead to OutOfMemory errors if the rar is to big.
+ *
  * @author Ivo Woltring
  */
 public class Memory {
