@@ -64,3 +64,6 @@ So this is the current way:
 </dependency>
 ```
 
+# Note
+
+Forked but major refactorings. Not done a pull request yet?!
